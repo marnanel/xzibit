@@ -19,7 +19,7 @@ clicked_cb (GtkWidget *widget,
   gdk_property_change (window->window,
 		       gdk_atom_intern ("_XZIBIT_SHARE", FALSE),
 		       gdk_atom_intern ("CARDINAL", FALSE),
-		       8,
+		       32,
 		       GDK_PROP_MODE_REPLACE,
 		       (const guchar*) &param,
 		       1);
