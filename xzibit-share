@@ -1,0 +1,6 @@
+#!/usr/bin/perl
+
+print "This is xzibit-share.\n";
+print "Arguments are:", @ARGV;
+print "\n";
+

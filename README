@@ -5,4 +5,5 @@ noddy-rfb-server.py: an RFB server that sends you a photo of Xzibit
 state-toggle.c: an app which can switch the _XZIBIT_SHARE setting of its window
 xzibit-bus-server.py: a simple Unix domain bus server, used before we get stuck into tubes
 xzibit-bus-client.py: test for xzibit-bus-server.py; not the real-life client
+xzibit-share: utterly minimal program which runs when you click the xzibit icon
 
