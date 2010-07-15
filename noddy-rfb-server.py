@@ -5,8 +5,10 @@ import socket
 import sys
 import gd
 import random
+import getopt
 
-host = None
+image_filename = 'Xzibit_2007.jpg'
+host = None # i.e. localhost
 port = 50008
 s = None
 
@@ -62,11 +64,19 @@ def send_image(connection, image):
                 chr(image.green(pixel)) + \
                 chr(image.blue(pixel))
     connection.send(pixels)
-    
+
+# parse commandline options
+for (option, value) in getopt.getopt(sys.argv[1:],
+                                     'p:i:', ['port=', 'image=']
+                                     )[0]:
+    if option in ('--image', '-i'):
+        image_filename = value
+    elif option in ('--port', '-p'):
+        port = int(value)
 
 # okay, now get the picture we want to send them
 
-img = gd.image('Xzibit_2007.jpg')
+img = gd.image(image_filename)
 
 # Let's try to make a connection
 
