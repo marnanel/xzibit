@@ -175,6 +175,20 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
   priv->info.description = "Allows you to share windows across IM.";
 }
 
+static void
+set_sharing_state (Window window, int sharing_state)
+{
+  if (sharing_state == 2 || sharing_state == 3)
+    {
+      /* not our concern */
+      return;
+    }
+
+  g_warning ("(xzibit plugin saw a change of sharing of %06lx to %d)\n",
+             (unsigned long) window, sharing_state);
+
+}
+
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
@@ -205,11 +219,13 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
 
         if (property->state == PropertyDelete)
           {
-            /* no value is equivalent to zero */
+            /* "no value" is equivalent to zero */
             new_state = 0;
           }
         else
           {
+            /* so, let's see what they put in there */
+
             Atom type;
             int format;
             unsigned long nitems, bytes_after;
@@ -227,8 +243,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
             XFree (value);
           }
 
-        g_warning ("(xzibit plugin saw a change of sharing to %d)\n",
-                   new_state);        
+        set_sharing_state (property->window,
+                           new_state);
       
         return FALSE; /* we never handle events ourselves */
       }
