@@ -36,6 +36,8 @@
 #include <clutter/clutter.h>
 #include <gmodule.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #define ACTOR_DATA_KEY "MCCP-Xzibit-actor-data"
 
@@ -83,9 +85,17 @@ struct _MutterXzibitPluginPrivate
 {
   MutterPluginInfo       info;
 
+  /**
+   * The atom _XZIBIT_SHARE.
+   */
   int xzibit_share_atom;
-};
 
+  /**
+   * The FD of the xzibit bus, which we're using until we switch
+   * to using Telepathy.
+   */
+  int bus_fd;
+};
 
 static void
 mutter_xzibit_plugin_dispose (GObject *object)
@@ -142,6 +152,23 @@ start (MutterPlugin *plugin)
     }
 
   priv->xzibit_share_atom = 0;
+
+  priv->bus_fd = socket (AF_UNIX, SOCK_STREAM, 0);
+  if (priv->bus_fd < 0)
+    {
+      g_warning ("Could not create a socket; things will break\n");
+    }
+  else
+    {
+      struct sockaddr_un addr;
+      char *message = "\001\000\000\000\177";
+      addr.sun_family = AF_UNIX;
+      strcpy (addr.sun_path, "/tmp/xzibit-bus");
+      connect (priv->bus_fd, (struct sockaddr*) &addr, sizeof(addr));
+
+      /* dummy message for testing flushing out the bus */
+      write (priv->bus_fd, message, 5);
+    }
 }
 
 static void
