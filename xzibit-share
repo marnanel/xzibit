@@ -1,6 +1,60 @@
 #!/usr/bin/perl
 
-print "This is xzibit-share.\n";
-print "Arguments are:", @ARGV;
-print "\n";
+use strict;
+use warnings;
+use X11::Protocol;
+use Data::Dumper;
+
+unless (@ARGV) {
+    die "This is xzibit-share.\n".
+	"Pass in the hex X ID of a window.\n";
+}
+
+my $win = hex($ARGV[0]);
+my $x = X11::Protocol->new();
+
+my ($root, $parent, @kids) = $x->QueryTree($win);
+
+if ($root == $parent) {
+    print "That appears to be a frame.  Checking for the toplevel.\n";
+    $win = 0;
+    for my $kid (@kids) {
+	my %attrs = $x->GetGeometry($kid);
+	if ($attrs{'width'}>1 &&
+	    $attrs{'height'}>1) {
+	    $win = $kid;
+	    last;
+	}
+    }
+}
+die "Couldn't work out the correct window.\n" unless $win;
+
+printf "Window is %x\n", $win;
+
+my $xzibit_share = $x->InternAtom('_XZIBIT_SHARE');
+my $cardinal = $x->InternAtom('CARDINAL');
+
+my ($sharing) = $x->GetProperty($win,
+				$xzibit_share,
+				$cardinal,
+				0, 32, 0);
+
+$sharing = ord($sharing);
+
+if ($sharing != 0 && $sharing != 1) {
+    die "Sharing state is $sharing; leaving well enough alone.\n";
+}
+
+if ($sharing == 0) {
+    my $dialogue = system('zenity --list --text="Please choose the contact with whom you wish to share this window." --title="Share my window" --column=Contact "Gabriel Syme" "Lucian Gregory" "Gogol" "Marquis de St Eustache" "Professor de Worms" "Dr Bull"');
+    die "Dialogue was cancelled\n" if $dialogue >= 256;
+    $sharing = 1;
+} else {
+    $sharing = 0;
+}
+
+print "Changing sharing state to $sharing.\n";
+$x->ChangeProperty($win, $xzibit_share, $cardinal, 32,
+		   'Replace',
+		   chr($sharing).chr(0).chr(0).chr(0), 1);#$sharing, 1);
 
