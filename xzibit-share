@@ -10,6 +10,16 @@ use Data::Dumper;
 # general case we'll need to be able to send an _XZIBIT_SHARE message
 # to the root window to ask the WM to change the sharing state.
 
+# FIXME: Use the real contact list :)
+my @contacts = (
+    "Gabriel Syme",
+    "Lucian Gregory",
+    "Gogol",
+    "Marquis de St Eustache",
+    "Professor de Worms",
+    "Dr Bull",
+    );
+
 unless (@ARGV) {
     die "This is xzibit-share.\n".
 	"Pass in the hex X ID of a window.\n";
@@ -52,14 +62,22 @@ if ($sharing == 2 || $sharing == 3) {
 }
 
 if ($sharing == 0) {
-    my $dialogue = system('zenity --list --text="Please choose the contact with whom you wish to share this window." --title="Share my window" --column=Contact "Gabriel Syme" "Lucian Gregory" "Gogol" "Marquis de St Eustache" "Professor de Worms" "Dr Bull"');
-    die "Dialogue was cancelled\n" if $dialogue >= 256;
+    my $command = 'zenity --list --text="Please choose the contact with whom you wish to share this window." --title="Share my window" --column=Contact ';
+    for my $contact (@contacts) {
+	$command .= ' "'.$contact.'"';
+    }
+    my $dialogue = qx($command);
+
+    chomp $dialogue;
+
+    die "Dialogue was cancelled\n" if $? >= 256;
+    die "No answer was given\n" unless $dialogue;
+
     $sharing = 1;
 
-    # FIXME: This should be done for real!
     $x->ChangeProperty($win, $xzibit_contact, $x->InternAtom('STRING'), 8,
 		       'Replace',
-		       "Name of contact", 1);
+		       $dialogue, 1);
 
 } else {
     $sharing = 0;
