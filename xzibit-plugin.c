@@ -71,24 +71,6 @@ static void     minimize   (MutterPlugin *plugin,
                             MutterWindow *actor);
 static gboolean   xevent_filter (MutterPlugin *plugin,
                             XEvent      *event);
-static void     map        (MutterPlugin *plugin,
-                            MutterWindow *actor);
-static void     destroy    (MutterPlugin *plugin,
-                            MutterWindow *actor);
-static void     maximize   (MutterPlugin *plugin,
-                            MutterWindow *actor,
-                            gint x, gint y, gint width, gint height);
-static void     unmaximize (MutterPlugin *plugin,
-                            MutterWindow *actor,
-                            gint x, gint y, gint width, gint height);
-
-static void switch_workspace (MutterPlugin *plugin,
-                              gint from, gint to,
-                              MetaMotionDirection direction);
-
-static void kill_window_effects (MutterPlugin *plugin,
-                                 MutterWindow *actor);
-static void kill_switch_workspace (MutterPlugin     *plugin);
 
 static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
@@ -101,7 +83,7 @@ struct _MutterXzibitPluginPrivate
 {
   MutterPluginInfo       info;
 
-  /* nothing very interesting here at present */
+  int xzibit_share_atom;
 };
 
 
@@ -158,6 +140,8 @@ start (MutterPlugin *plugin)
 
       /* which means nothing at all at the moment */
     }
+
+  priv->xzibit_share_atom = 0;
 }
 
 static void
@@ -172,7 +156,6 @@ mutter_xzibit_plugin_class_init (MutterXzibitPluginClass *klass)
   gobject_class->get_property    = mutter_xzibit_plugin_get_property;
 
   plugin_class->start            = start;
-  plugin_class->map              = map;
   plugin_class->xevent_filter    = xevent_filter;
 
   g_type_class_add_private (gobject_class, sizeof (MutterXzibitPluginPrivate));
@@ -195,14 +178,64 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
-  g_warning ("(xzibit plugin X event filter)\n");
-  return FALSE;
-}
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
 
-static void
-map (MutterPlugin *plugin, MutterWindow *mc_window)
-{
-  g_warning ("(xzibit plugin map event)\n");
+  switch (event->type)
+    {
+    case MapNotify:
+      {
+        /* g_warning ("(xzibit plugin map event)\n"); */
+      }
+      return FALSE;
+
+    case PropertyNotify:
+      {
+        XPropertyEvent *property = (XPropertyEvent*) event;
+        int new_state = 0;
+
+        if (priv->xzibit_share_atom == 0)
+          {
+            priv->xzibit_share_atom = XInternAtom(property->display,
+                                                  "_XZIBIT_SHARE",
+                                                  False);
+          }
+      
+        if (property->atom != priv->xzibit_share_atom)
+          return FALSE;
+
+        if (property->state == PropertyDelete)
+          {
+            /* no value is equivalent to zero */
+            new_state = 0;
+          }
+        else
+          {
+            Atom type;
+            int format;
+            unsigned long nitems, bytes_after;
+            unsigned char *value;
+
+            XGetWindowProperty(property->display,
+                               property->window,
+                               priv->xzibit_share_atom,
+                               0, 4, False,
+                               AnyPropertyType,
+                               &type, &format, &nitems, &bytes_after,
+                               &value);
+
+            new_state = *((unsigned long*)value);
+            XFree (value);
+          }
+
+        g_warning ("(xzibit plugin saw a change of sharing to %d)\n",
+                   new_state);        
+      
+        return FALSE; /* we never handle events ourselves */
+      }
+
+    default:
+      return FALSE; /* we didn't handle it */
+    }
 }
 
 static const MutterPluginInfo *
