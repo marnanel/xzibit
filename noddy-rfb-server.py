@@ -100,7 +100,7 @@ for res in socket.getaddrinfo(host, port, socket.AF_UNSPEC,
 # failed?
 
 if s is None:
-    print 'could not open socket'
+    print 'could not open socket; returning 1'
     sys.exit(1)
 
 print 'Listening on port ',port
