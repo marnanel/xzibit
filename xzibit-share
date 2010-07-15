@@ -32,6 +32,7 @@ die "Couldn't work out the correct window.\n" unless $win;
 printf "Window is %x\n", $win;
 
 my $xzibit_share = $x->InternAtom('_XZIBIT_SHARE');
+my $xzibit_contact = $x->InternAtom('_XZIBIT_CONTACT');
 my $cardinal = $x->InternAtom('CARDINAL');
 
 my ($sharing) = $x->GetProperty($win,
@@ -49,6 +50,12 @@ if ($sharing == 0) {
     my $dialogue = system('zenity --list --text="Please choose the contact with whom you wish to share this window." --title="Share my window" --column=Contact "Gabriel Syme" "Lucian Gregory" "Gogol" "Marquis de St Eustache" "Professor de Worms" "Dr Bull"');
     die "Dialogue was cancelled\n" if $dialogue >= 256;
     $sharing = 1;
+
+    # FIXME: This should be done for real!
+    $x->ChangeProperty($win, $xzibit_contact, $x->InternAtom('STRING'), 8,
+		       'Replace',
+		       "Name of contact", 1);
+
 } else {
     $sharing = 0;
 }
