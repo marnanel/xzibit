@@ -41,7 +41,7 @@ my ($sharing) = $x->GetProperty($win,
 
 $sharing = ord($sharing);
 
-if ($sharing != 0 && $sharing != 1) {
+if ($sharing == 2 || $sharing == 3) {
     die "Sharing state is $sharing; leaving well enough alone.\n";
 }
 
@@ -56,5 +56,5 @@ if ($sharing == 0) {
 print "Changing sharing state to $sharing.\n";
 $x->ChangeProperty($win, $xzibit_share, $cardinal, 32,
 		   'Replace',
-		   chr($sharing).chr(0).chr(0).chr(0), 1);#$sharing, 1);
+		   chr($sharing).chr(0).chr(0).chr(0), 1);
 
