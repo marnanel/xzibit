@@ -5,6 +5,11 @@ use warnings;
 use X11::Protocol;
 use Data::Dumper;
 
+# NB: Under SELinux this won't work, because it alters a property of
+# another client's window.  Therefore in order to do this in the
+# general case we'll need to be able to send an _XZIBIT_SHARE message
+# to the root window to ask the WM to change the sharing state.
+
 unless (@ARGV) {
     die "This is xzibit-share.\n".
 	"Pass in the hex X ID of a window.\n";
