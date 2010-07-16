@@ -6,10 +6,12 @@ import sys
 import gd
 import random
 import getopt
+import os
 
 image_filename = 'Xzibit_2007.jpg'
 host = None # i.e. localhost
 port = 50008
+xid = None
 s = None
 
 def read_n(connection, bytes):
@@ -67,16 +69,26 @@ def send_image(connection, image):
 
 # parse commandline options
 for (option, value) in getopt.getopt(sys.argv[1:],
-                                     'p:i:', ['port=', 'image=']
+                                     'p:i:x:', ['port=', 'image=', 'xid=']
                                      )[0]:
     if option in ('--image', '-i'):
         image_filename = value
     elif option in ('--port', '-p'):
         port = int(value)
+    elif option in ('--xid', '-x'):
+        xid = value
+
+if xid is not None:
+    image_filename = '/tmp/%d.png' % (random.random()*100000,)
+    print image_filename
+    os.system('import -window '+xid+' -format png '+image_filename)
 
 # okay, now get the picture we want to send them
 
 img = gd.image(image_filename)
+
+if xid is not None:
+    os.unlink(image_filename)
 
 # Let's try to make a connection
 
