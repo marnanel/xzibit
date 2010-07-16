@@ -230,7 +230,72 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 }
 
 static void
-set_sharing_state (Window window, int sharing_state)
+share_window (Window window, MutterPlugin *plugin)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  GError *error = NULL;
+  const char **argvl = g_malloc(sizeof (char*) * 6);
+  char *xwindow_id = g_strdup_printf("0x%x",
+                                     (int) window);
+  int port = (random() % 60000) + 1024;
+  char *port_as_string = g_strdup_printf("%d", port);
+  char message[11];
+
+  g_warning ("Randomly chosen port is %d\n", port);
+
+  argvl[0] = "noddy-rfb-server";
+  argvl[1] = "-p";
+  argvl[2] = port_as_string;
+  argvl[3] = "-x";
+  argvl[4] = xwindow_id;
+  argvl[5] = 0;
+
+  g_spawn_async (
+                 "/",
+                 (gchar**) argvl,
+                 NULL,
+                 G_SPAWN_SEARCH_PATH,
+                 NULL, NULL,
+                 NULL,
+                 &error
+                 );
+
+  /*
+    FIXME:
+
+    The port we randomly chose may be inappropriate;
+    noddy-rfb-server will signal this by returning 1
+    and we should then recur and pick a new port.
+  */
+
+  g_free (xwindow_id);
+  g_free (port_as_string);
+  g_free (argvl);
+
+  if (error)
+    {
+      meta_warning ("Attempting to launch window sharing service: %s\n", error->message);
+      g_error_free (error);
+    }
+
+  /* and tell our counterpart about it */
+
+  message[0] = 7; /* length */
+  message[1] = message[2] = message[3] = 0;
+  message[4] = 1; /* opcode */
+  message[5] = 127; /* IP address (ignored) */
+  message[6] = 0;
+  message[7] = 0;
+  message[8] = 1;
+  message[9] = port % 256;
+  message[10] = port / 256;
+
+  write (priv->bus_fd, message, sizeof(message));
+
+}
+
+static void
+set_sharing_state (Window window, int sharing_state, MutterPlugin *plugin)
 {
   if (sharing_state == 2 || sharing_state == 3)
     {
@@ -241,6 +306,18 @@ set_sharing_state (Window window, int sharing_state)
   g_warning ("(xzibit plugin saw a change of sharing of %06lx to %d)\n",
              (unsigned long) window, sharing_state);
 
+  switch (sharing_state)
+    {
+    case 1:
+      /* we are starting to share this window */
+      share_window (window, plugin);
+      break;
+
+    case 0:
+      /* we have stopped sharing this window */
+      /* FIXME: deal with this case. */
+      break;
+    }
 }
 
 static void
@@ -382,7 +459,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
           }
 
         set_sharing_state (property->window,
-                           new_state);
+                           new_state,
+                           plugin);
       
         return FALSE; /* we never handle events ourselves */
       }
