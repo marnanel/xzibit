@@ -21,6 +21,11 @@ static const GOptionEntry options[] =
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
+static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
+{
+  gtk_window_set_title (GTK_WINDOW (window),
+			vnc_display_get_name (VNC_DISPLAY (vnc)));
+}
 
 int
 main (int argc, char **argv)
@@ -50,16 +55,14 @@ main (int argc, char **argv)
   gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
 
   vnc = vnc_display_new();
-  vnc_display_set_keyboard_grab (VNC_DISPLAY (vnc), TRUE);
-  vnc_display_set_pointer_grab (VNC_DISPLAY (vnc), TRUE);
+  g_signal_connect(vnc, "vnc-initialized", G_CALLBACK(vnc_initialized), window);
+  g_signal_connect(vnc, "vnc-disconnected", G_CALLBACK(gtk_main_quit), NULL);
+
   port_as_string = g_strdup_printf ("%d", port);
   vnc_display_open_host (VNC_DISPLAY (vnc),
 			 "127.0.0.1",
 			 port_as_string);
   g_free (port_as_string);
-  /* this won't work: it's not connected yet */
-  gtk_window_set_title (GTK_WINDOW (window),
-			vnc_display_get_name (VNC_DISPLAY (vnc)));
 
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
