@@ -144,7 +144,7 @@ print 'Client wants exclusive access?', ord(exclusive)
 
 (width, height) = img.size()
 
-name = 'Multiplexer'
+name = '(remote window; FIXME)'
 
 send16(conn, width)
 send16(conn, height)
