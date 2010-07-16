@@ -1,5 +1,8 @@
 #include <gtk/gtk.h>
+#include <gdk/gdkx.h>
 #include <vncdisplay.h>
+#include <X11/X.h>
+
 /*
  * things this should be able to do eventually:
  *
@@ -20,6 +23,21 @@ static const GOptionEntry options[] =
 	  "The port number on localhost to connect to", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
+
+static void
+set_window_remote (GtkWidget *window)
+{
+  guint32 window_is_remote = 2;
+
+  XChangeProperty (gdk_x11_get_default_xdisplay (),
+		   GDK_WINDOW_XID (window->window),
+		   gdk_x11_get_xatom_by_name("_XZIBIT_SHARE"),
+		   gdk_x11_get_xatom_by_name("CARDINAL"),
+		   32,
+		   PropModeReplace,
+		   (const unsigned char*) &window_is_remote,
+		   1);
+}
 
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 {
@@ -67,6 +85,7 @@ main (int argc, char **argv)
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
   gtk_widget_show_all (window);
+  set_window_remote (window);
 
   gtk_main ();
 }
