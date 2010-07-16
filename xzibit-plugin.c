@@ -38,6 +38,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define ACTOR_DATA_KEY "MCCP-Xzibit-actor-data"
 
@@ -74,6 +76,10 @@ static void     minimize   (MutterPlugin *plugin,
 static gboolean   xevent_filter (MutterPlugin *plugin,
                             XEvent      *event);
 
+static gboolean check_for_bus_reads (GIOChannel *source,
+                                     GIOCondition condition,
+                                     gpointer data);
+
 static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
 MUTTER_PLUGIN_DECLARE(MutterXzibitPlugin, mutter_xzibit_plugin);
@@ -95,6 +101,11 @@ struct _MutterXzibitPluginPrivate
    * to using Telepathy.
    */
   int bus_fd;
+
+  int bus_count;
+  int bus_reading_size;
+  long bus_size;
+  unsigned char *bus_buffer;
 };
 
 static void
@@ -141,6 +152,7 @@ static void
 start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  int flags;
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -153,7 +165,12 @@ start (MutterPlugin *plugin)
 
   priv->xzibit_share_atom = 0;
 
+  priv->bus_count = 0;
+  priv->bus_reading_size = 1;
+  priv->bus_size = 0;
+
   priv->bus_fd = socket (AF_UNIX, SOCK_STREAM, 0);
+
   if (priv->bus_fd < 0)
     {
       g_warning ("Could not create a socket; things will break\n");
@@ -162,12 +179,22 @@ start (MutterPlugin *plugin)
     {
       struct sockaddr_un addr;
       char *message = "\001\000\000\000\177";
+      int bufsize=4096;
+      GIOChannel *channel;
+
       addr.sun_family = AF_UNIX;
       strcpy (addr.sun_path, "/tmp/xzibit-bus");
-      connect (priv->bus_fd, (struct sockaddr*) &addr, sizeof(addr));
+      connect (priv->bus_fd, (struct sockaddr*) &addr,
+               strlen(addr.sun_path) + sizeof (addr.sun_family));
 
       /* dummy message for testing flushing out the bus */
-      write (priv->bus_fd, message, 5);
+      /* write (priv->bus_fd, message, 5); */
+
+      channel = g_io_channel_unix_new (priv->bus_fd);
+      g_io_add_watch (channel,
+                      G_IO_IN,
+                      check_for_bus_reads,
+                      plugin);
     }
 }
 
@@ -216,10 +243,94 @@ set_sharing_state (Window window, int sharing_state)
 
 }
 
+static void
+handle_message_from_bus (unsigned char *buffer,
+                         int size)
+{
+  int opcode;
+
+  if (size==0)
+    {
+      return;
+    }
+
+  opcode = buffer[0];
+
+  switch (opcode)
+    {
+    case 1:
+      g_warning ("I think we should connect to port %d",
+                 buffer[6]<<8 | buffer[5]);
+      break;
+
+    default:
+      g_warning ("Unknown message type: %d\n", opcode);
+    }
+
+}
+
+static gboolean
+check_for_bus_reads (GIOChannel *source,
+                     GIOCondition condition,
+                     gpointer data)
+{
+  MutterPlugin *plugin = (MutterPlugin*) data;
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char buffer[1024];
+  int count;
+  int i;
+  int q;
+
+  count = recv (priv->bus_fd,
+                buffer,
+                sizeof(buffer),
+                MSG_DONTWAIT);
+
+  if (count<0)
+    {
+      if (errno==EWOULDBLOCK)
+        return;
+
+      g_error ("xzibit bus has died; can't really carry on");
+    }
+
+  for (i=0; i<count; i++) {
+    if (priv->bus_reading_size) {
+      priv->bus_size >>= 8;
+      priv->bus_size |= (buffer[i]<< 8*3);
+          
+      if (priv->bus_count == 3)
+        {
+          priv->bus_reading_size = 0;
+          priv->bus_count = -1;
+
+          priv->bus_buffer = g_malloc (priv->bus_size);
+        }
+    } else {
+      priv->bus_buffer[priv->bus_count] = buffer[i];
+
+      if (priv->bus_count == priv->bus_size-1)
+        {
+          handle_message_from_bus (priv->bus_buffer,
+                                   priv->bus_size);
+          g_free (priv->bus_buffer);
+          priv->bus_count = -1;
+          priv->bus_reading_size = 1;
+        }
+    }
+
+    priv->bus_count++;
+    
+  }
+
+  return TRUE;
+}
+
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  int i;
 
   switch (event->type)
     {

@@ -53,7 +53,7 @@ server.bind(filename)
 
 waiting = [server]
 
-server.listen(1)
+server.listen(5)
 
 while 1:
     ready = select.select(waiting, [], [])[0]
@@ -64,7 +64,11 @@ while 1:
             print 'client connected'
             waiting.append(connection)
         else:
-            got = sock.recv(1024)
+            got = ''
+            try:
+                got = sock.recv(1024)
+            except:
+                pass
             if len(got)==0:
                 # assume eof
                 print 'client disconnected'
@@ -93,5 +97,6 @@ while 1:
                     # don't send to the server socket,
                     # nor to the originating socket
                     continue
+                print '(sent to ',remote,')'
                 remote.send(buffer[fd][0:needed])
             buffer[fd] = buffer[fd][needed:]

@@ -4,6 +4,7 @@
 import sys
 import socket
 import os
+import time
 
 def dump(s):
     result = ''
@@ -33,7 +34,10 @@ if len(sys.argv)>1 and sys.argv[1]=='-s':
         temp >>= 8
     print 'Client ',os.getpid(),' sends ',dump(message)
     server.send(length+message)
-
-print 'Client ',os.getpid(),' receives ',dump(server.recv(1024)), 'and quits'
+else:
+    print 'DELAY'
+    time.sleep(5)
+    print 'END DELAY'
+    print 'Client ',os.getpid(),' receives ',dump(server.recv(1024)), 'and quits'
 
 server.close()
