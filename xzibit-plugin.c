@@ -294,6 +294,43 @@ share_window (Window window, MutterPlugin *plugin)
 
 }
 
+static gboolean
+receive_window (gpointer data)
+{
+  int port = GPOINTER_TO_INT (data);
+  GError *error = NULL;
+  const char **argvl = g_malloc(sizeof (char*) * 4);
+  char *port_as_string = g_strdup_printf("%d", port);
+
+  g_warning ("Receiving window on port %d\n", port);
+
+  argvl[0] = "xzibit-rfb-client";
+  argvl[1] = "-p";
+  argvl[2] = port_as_string;
+  argvl[3] = 0;
+
+  g_spawn_async (
+                 "/",
+                 (gchar**) argvl,
+                 NULL,
+                 G_SPAWN_SEARCH_PATH,
+                 NULL, NULL,
+                 NULL,
+                 &error
+                 );
+
+  g_free (port_as_string);
+  g_free (argvl);
+  
+  if (error)
+    {
+      meta_warning ("Attempting to launch window receiving service: %s\n", error->message);
+      g_error_free (error);
+    }
+
+  return FALSE;
+}
+
 static void
 set_sharing_state (Window window, int sharing_state, MutterPlugin *plugin)
 {
@@ -336,8 +373,9 @@ handle_message_from_bus (unsigned char *buffer,
   switch (opcode)
     {
     case 1:
-      g_warning ("I think we should connect to port %d",
-                 buffer[6]<<8 | buffer[5]);
+      g_timeout_add (3000,
+                     receive_window,
+                     GINT_TO_POINTER (buffer[6]<<8 | buffer[5]));
       break;
 
     default:

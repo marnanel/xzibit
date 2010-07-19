@@ -70,11 +70,13 @@ int
 main(int argc, char **argv)
 {
   rfbScreenInfoPtr rfb_screen;
-  GdkPixbuf *pixbuf1;
+  GdkPixbuf *pixbuf1, *pixbuf2, *pixbuf3;
 
   gtk_init (&argc, &argv);
 
   pixbuf1 = gdk_pixbuf_new_from_file ("test1.png", NULL);
+  pixbuf2 = gdk_pixbuf_new_from_file ("test2.png", NULL);
+  pixbuf3 = gdk_pixbuf_new_from_file ("test3.png", NULL);
 
   rfb_screen = rfbGetScreen(&argc, argv,
 			    gdk_pixbuf_get_width (pixbuf1),
@@ -84,7 +86,7 @@ main(int argc, char **argv)
 
   rfb_screen->desktopName = "Chicken Man";
   rfb_screen->autoPort           = FALSE;
-  rfb_screen->port = 7182;
+  rfb_screen->port = 7183;
   rfb_screen->kbdAddEvent             = handle_key_event;
 
   rfb_screen->frameBuffer = gdk_pixbuf_get_pixels (pixbuf1);

@@ -56,6 +56,8 @@ main (int argc, char **argv)
 
   gtk_init (&argc, &argv);
 
+  g_warning ("RFB client starting...\n");
+
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
   g_option_context_parse (context, &argc, &argv, &error);
@@ -85,6 +87,7 @@ main (int argc, char **argv)
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
   gtk_widget_show_all (window);
+  g_warning ("RFB client shown window.\n");
   set_window_remote (window);
 
   gtk_main ();
