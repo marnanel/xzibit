@@ -65,6 +65,35 @@ check_vnc_password (rfbClientPtr  rfb_client,
   return RFB_CLIENT_ACCEPT;
 }
 
+gboolean
+run_rfb_event_loop (gpointer data)
+{
+  rfbScreenInfoPtr rfb_screen = (rfbScreenInfoPtr) data;
+
+  rfbProcessEvents(rfb_screen,
+		   40000);
+  return TRUE;
+}
+
+gpointer pictures[2];
+gint which_picture = 0;
+
+gboolean
+update_image (gpointer data)
+{
+  rfbScreenInfoPtr rfb_screen = (rfbScreenInfoPtr) data;
+
+  which_picture = (which_picture+1)%3;
+
+  rfb_screen->frameBuffer = pictures[which_picture];
+
+  rfbMarkRectAsModified(rfb_screen,
+			0, 0,
+			rfb_screen->width,
+			rfb_screen->height);
+
+  return TRUE;
+}
 
 int
 main(int argc, char **argv)
@@ -86,17 +115,28 @@ main(int argc, char **argv)
 
   rfb_screen->desktopName = "Chicken Man";
   rfb_screen->autoPort           = FALSE;
-  rfb_screen->port = 7183;
+  rfb_screen->port = 7187;
   rfb_screen->kbdAddEvent             = handle_key_event;
 
-  rfb_screen->frameBuffer = gdk_pixbuf_get_pixels (pixbuf1);
+  pictures[0] = gdk_pixbuf_get_pixels (pixbuf1);
+  pictures[1] = gdk_pixbuf_get_pixels (pixbuf2);
+  pictures[2] = gdk_pixbuf_get_pixels (pixbuf3);
+
+  rfb_screen->frameBuffer = pictures[0];
 
   rfbInitServer (rfb_screen);
 
   printf ("Hello world.\n");
-  rfbRunEventLoop(rfb_screen,
-		  40000,
-		  FALSE);
+
+  g_timeout_add (100,
+		 run_rfb_event_loop,
+		 rfb_screen);
+
+  g_timeout_add (1500,
+		 update_image,
+		 rfb_screen);
+  
+  gtk_main ();
 
   return 0;
 }
