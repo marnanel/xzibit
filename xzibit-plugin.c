@@ -236,12 +236,15 @@ share_window (Window window, MutterPlugin *plugin)
   unsigned char message[11];
   int port;
 
+  g_warning ("Share window...");
   port = vnc_port (window);
+  g_warning ("Port is %d", port);
 
   if (port==0)
     {
       vnc_start (window);
       port = vnc_port (window);
+      g_warning ("Port is really %d", port);
     }
   
   /* and tell our counterpart about it */
