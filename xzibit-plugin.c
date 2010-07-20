@@ -28,6 +28,7 @@
  */
 
 #include "mutter-plugin.h"
+#include "vnc.h"
 
 #include <libintl.h>
 #define _(x) dgettext (GETTEXT_PACKAGE, x)
@@ -71,8 +72,6 @@ struct _MutterXzibitPluginClass
 
 static GQuark actor_data_quark = 0;
 
-static void     minimize   (MutterPlugin *plugin,
-                            MutterWindow *actor);
 static gboolean   xevent_filter (MutterPlugin *plugin,
                             XEvent      *event);
 
@@ -234,50 +233,17 @@ share_window (Window window, MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GError *error = NULL;
-  const char **argvl = g_malloc(sizeof (char*) * 6);
-  char *xwindow_id = g_strdup_printf("0x%x",
-                                     (int) window);
-  int port = (random() % 60000) + 1024;
-  char *port_as_string = g_strdup_printf("%d", port);
-  char message[11];
+  unsigned char message[11];
+  int port;
 
-  g_warning ("Randomly chosen port is %d\n", port);
+  port = vnc_port (window);
 
-  argvl[0] = "noddy-rfb-server";
-  argvl[1] = "-p";
-  argvl[2] = port_as_string;
-  argvl[3] = "-x";
-  argvl[4] = xwindow_id;
-  argvl[5] = 0;
-
-  g_spawn_async (
-                 "/",
-                 (gchar**) argvl,
-                 NULL,
-                 G_SPAWN_SEARCH_PATH,
-                 NULL, NULL,
-                 NULL,
-                 &error
-                 );
-
-  /*
-    FIXME:
-
-    The port we randomly chose may be inappropriate;
-    noddy-rfb-server will signal this by returning 1
-    and we should then recur and pick a new port.
-  */
-
-  g_free (xwindow_id);
-  g_free (port_as_string);
-  g_free (argvl);
-
-  if (error)
+  if (port==0)
     {
-      meta_warning ("Attempting to launch window sharing service: %s\n", error->message);
-      g_error_free (error);
+      vnc_start (window);
+      port = vnc_port (window);
     }
-
+  
   /* and tell our counterpart about it */
 
   message[0] = 7; /* length */
