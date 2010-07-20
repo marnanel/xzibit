@@ -4,6 +4,9 @@
 #include <X11/X.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
+extern int vnc_latestTime;
+extern int vnc_latestSerial;
+
 /**
  * Creates a new VNC server for the given X ID.
  * If there is already a VNC server for the given ID,

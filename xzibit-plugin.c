@@ -472,6 +472,18 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         return FALSE; /* we never handle events ourselves */
       }
 
+    case KeyPress:
+    case KeyRelease:
+    case ButtonPress:
+    case ButtonRelease:
+    case MotionNotify:
+      {
+        XButtonEvent *button = (XButtonEvent*) event;
+
+        vnc_latestTime = button->time;
+        vnc_latestSerial = button->serial;
+      }
+      
     default:
       return FALSE; /* we didn't handle it */
     }
