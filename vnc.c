@@ -43,15 +43,16 @@ run_rfb_event_loop (gpointer data)
 				  private->width,
 				  private->height);
 
+  GdkPixbuf *alpha_screenshot;
+
   if (screenshot==NULL)
     {
       g_warning ("Screenshot was null; bailing");
       return TRUE;
     }
 
-  /* FIXME: I think this leaks */
-  screenshot = gdk_pixbuf_add_alpha (screenshot,
-				     FALSE, 0, 0, 0);
+  alpha_screenshot = gdk_pixbuf_add_alpha (screenshot,
+					   FALSE, 0, 0, 0);
 
   g_free (private->rfb_screen->frameBuffer);
 
@@ -61,6 +62,9 @@ run_rfb_event_loop (gpointer data)
 			0, 0,
 			gdk_pixbuf_get_width (screenshot),
 			gdk_pixbuf_get_height (screenshot));
+
+  g_object_unref (screenshot);
+  g_object_unref (alpha_screenshot);
 
   rfbProcessEvents(private->rfb_screen,
 		   40000);
