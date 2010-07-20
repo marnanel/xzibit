@@ -13,6 +13,8 @@ typedef struct _VncPrivate {
   int width, height;
   GdkWindow *window;
   GdkPixbuf *screenshot;
+  int screenshot_checksum;
+  gboolean screenshot_checksum_valid;
   rfbScreenInfoPtr rfb_screen;
 } VncPrivate;
 
@@ -69,6 +71,8 @@ static gboolean
 run_rfb_event_loop (gpointer data)
 {
   VncPrivate *private = (VncPrivate*) data;
+  int checksum = 0, pixelcount, i;
+  char *pixels;
 
   /* FIXME: We really want to snoop on what the
      compositor already knows
@@ -88,20 +92,36 @@ run_rfb_event_loop (gpointer data)
       return TRUE;
     }
 
-  if (private->screenshot)
-    g_object_unref (private->screenshot);
+  pixels = gdk_pixbuf_get_pixels (screenshot);
+  pixelcount = gdk_pixbuf_get_width(screenshot) * ((gdk_pixbuf_get_n_channels(screenshot) * gdk_pixbuf_get_bits_per_sample(screenshot)+7)/8);
+  pixelcount += (gdk_pixbuf_get_height(screenshot)-1) * gdk_pixbuf_get_rowstride(screenshot);
+  for (i=0; i < pixelcount; i++) {
+    checksum += pixels[i];
+  }
 
-  private->screenshot = gdk_pixbuf_add_alpha (screenshot,
-					   FALSE, 0, 0, 0);
+  if (!private->screenshot_checksum_valid || checksum != private->screenshot_checksum)
+    {
+      private->screenshot_checksum = checksum;
+      private->screenshot_checksum_valid = TRUE;
 
-  private->rfb_screen->frameBuffer = gdk_pixbuf_get_pixels (private->screenshot);
+      if (private->screenshot)
+	{
+	  g_object_unref (private->screenshot);
+	}
 
-  rfbMarkRectAsModified(private->rfb_screen,
-			0, 0,
-			gdk_pixbuf_get_width (screenshot),
-			gdk_pixbuf_get_height (screenshot));
+      private->screenshot = gdk_pixbuf_add_alpha (screenshot,
+						  FALSE, 0, 0, 0);
 
-  g_object_unref (screenshot);
+      private->rfb_screen->frameBuffer = gdk_pixbuf_get_pixels (private->screenshot);
+
+      rfbMarkRectAsModified(private->rfb_screen,
+			    0, 0,
+			    gdk_pixbuf_get_width (screenshot),
+			    gdk_pixbuf_get_height (screenshot));
+
+      g_object_unref (screenshot);
+
+    }
 
   rfbProcessEvents(private->rfb_screen,
 		   40000);
@@ -159,6 +179,8 @@ vnc_start (Window id)
   private->height = height;
   private->window = gdk_window_foreign_new (id);
   private->screenshot = NULL;
+  private->screenshot_checksum = 0;
+  private->screenshot_checksum_valid = FALSE;
 
   private->rfb_screen = rfbGetScreen(/* we don't supply argc and argv */
 				     0, NULL,
