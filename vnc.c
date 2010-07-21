@@ -4,7 +4,9 @@
 #include <rfb/rfb.h>
 #include <X11/Xlib.h>
 #include <gdk/gdkx.h>
-
+#include <X11/extensions/XInput2.h>
+#include <X11/extensions/XI2.h>
+#include <X11/extensions/XInput.h>
 
 typedef struct _VncPrivate {
   /* FIXME: This is also rfb_screen->port;
@@ -16,6 +18,8 @@ typedef struct _VncPrivate {
   int screenshot_checksum;
   gboolean screenshot_checksum_valid;
   rfbScreenInfoPtr rfb_screen;
+  XDevice *xtest_pointer;
+  XDevice *xtest_keyboard;
 } VncPrivate;
 
 GHashTable *servers = NULL;
@@ -144,9 +148,81 @@ handle_mouse_event (int buttonMask,
 		  True);
 }
 
-void
-vnc_start (Window id)
+static void
+handle_keyboard_event (rfbBool down,
+		       rfbKeySym keySym,
+		       struct _rfbClientRec* cl)
 {
+  VncPrivate *private = (VncPrivate*) cl->screen->screenData;
+  Display *display = gdk_x11_get_default_xdisplay();
+
+  g_warning ("Key event: %s, %x\n",
+	     down?"down":"up",
+	     keySym);
+
+  XTestFakeKeyEvent(display, keySym, down, 0);
+}
+
+static void
+add_mpx_for_window (Window window, VncPrivate *private)
+{
+  XIAddMasterInfo add;
+  gchar *name = g_strdup_printf("xzibit-p-%07x",
+				(int) window);
+
+
+  private->xtest_pointer = NULL;
+  private->xtest_keyboard = NULL;
+
+  /* add the device */
+
+  add.type = XIAddMaster;
+  add.name = name;
+  add.send_core = True;
+  add.enable = True;
+
+  g_warning ("Adding new pointer called %s", name);
+
+  XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
+		     (XIAnyHierarchyChangeInfo*) &add, 1);
+
+  /* now see whether it's in the list */
+
+  int ndevices;
+  XIDeviceInfo *devices, *device;
+  int i;
+
+  devices = XIQueryDevice(gdk_x11_get_default_xdisplay (),
+			  XIAllDevices, &ndevices);
+
+  for (i = 0; i < ndevices; i++) {
+    device = &devices[i];
+
+    if (g_str_has_prefix (device->name,
+			  name))
+      {
+	switch (device->use)
+	  {
+	  case XISlavePointer:
+	    private->xtest_pointer = XOpenDevice (gdk_x11_get_default_xdisplay (),
+						  device->deviceid);
+	    break;
+
+	  case XISlaveKeyboard:
+	    private->xtest_keyboard = XOpenDevice (gdk_x11_get_default_xdisplay (),
+						   device->deviceid);
+	    break;
+	  }
+      }
+  }
+
+  XIFreeDeviceInfo(devices);
+  g_free (name);
+}
+
+void
+vnc_start (Window id) {
+
   VncPrivate *private = NULL;
   int *key;
   Window root;
@@ -182,6 +258,8 @@ vnc_start (Window id)
   private->screenshot_checksum = 0;
   private->screenshot_checksum_valid = FALSE;
 
+  add_mpx_for_window (id, private);
+
   private->rfb_screen = rfbGetScreen(/* we don't supply argc and argv */
 				     0, NULL,
 				     width,
@@ -198,10 +276,7 @@ vnc_start (Window id)
 
   private->rfb_screen->screenData = private;
   private->rfb_screen->ptrAddEvent = handle_mouse_event;
-
-  /*
-  private->rfb_screen->kbdAddEvent             = handle_key_event;
-  */
+  private->rfb_screen->kbdAddEvent = handle_keyboard_event;
 
   g_warning ("(on port %d)", private->port);
 
@@ -212,6 +287,7 @@ vnc_start (Window id)
   g_timeout_add (100,
 		 run_rfb_event_loop,
 		 private);
+
 }
 
 unsigned int

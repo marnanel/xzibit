@@ -29,6 +29,7 @@
 
 #include "mutter-plugin.h"
 #include "vnc.h"
+#include <X11/extensions/XI2.h>
 
 #include <libintl.h>
 #define _(x) dgettext (GETTEXT_PACKAGE, x)
@@ -483,6 +484,14 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         vnc_latestTime = button->time;
         vnc_latestSerial = button->serial;
       }
+
+    case GenericEvent:
+      switch (event->xcookie.type)
+        {
+        case XI_HierarchyChanged:
+          break;
+        }
+      break;
       
     default:
       return FALSE; /* we didn't handle it */
