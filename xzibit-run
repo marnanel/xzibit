@@ -10,10 +10,24 @@ import time
 import signal
 import socket
 from subprocess import Popen
+import getopt
 
 pidsfile = '/tmp/xzibit-pids'
 busfile = '/tmp/xzibit-bus'
 stderr = file('/tmp/xzibit-stderr', 'a')
+
+def usage():
+    print 'Usage:'
+    print '  ./xzibit-run [switches]'
+    print 'Switches:'
+    print '  --test foo'
+    print '      run test foo'
+    print '  --list'
+    print '      list tests'
+    print '  --pulse'
+    print '      pulse the source window'
+    print '  --events'
+    print '      list events on the source window'
 
 def banner():
     print ' - = - X Z I B I T - = -'
@@ -43,8 +57,6 @@ def test_x_server_active(display):
             print "If it isn't, please delete the file %s ." % (filename,)
             abort()
 
-banner()
-
 def test_bus():
     try:
         server = socket.socket(socket.AF_UNIX,
@@ -55,6 +67,24 @@ def test_bus():
         return True
     except:
         return False
+
+banner()
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "", ["test=", "pulse", "events",
+                                                  "help"])
+except getopt.GetoptError, err:
+    print str(err)
+    usage()
+    sys.exit(2)
+
+options = {}
+for (opt, arg) in opts:
+    options[opt] = arg
+
+if options.has_key('--help') or options=={}:
+    usage()
+    sys.exit()
 
 have_bus = False
 
@@ -112,5 +142,13 @@ launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
 # Here we tried to add wallpaper to differentiate them visually
 # but mutter doesn't like it
 
-launch(['./autoshare', '--pulse', '--display', ':3'])
+autoshare_args = ['./autoshare']
+if options.has_key('--pulse'):
+    autoshare_args.extend(['--pulse'])
+if options.has_key('--events'):
+    autoshare_args.extend(['--events'])
+autoshare_args.extend(['--display', ':3'])
+
+print autoshare_args
+launch(autoshare_args)
 
