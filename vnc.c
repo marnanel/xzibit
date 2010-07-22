@@ -20,6 +20,7 @@ typedef struct _VncPrivate {
   rfbScreenInfoPtr rfb_screen;
   XDevice *xtest_pointer;
   XDevice *xtest_keyboard;
+  int master_pointer;
 } VncPrivate;
 
 GHashTable *servers = NULL;
@@ -155,12 +156,44 @@ handle_keyboard_event (rfbBool down,
 {
   VncPrivate *private = (VncPrivate*) cl->screen->screenData;
   Display *display = gdk_x11_get_default_xdisplay();
+  int current_pointer;
+  int count;
+  int keycode;
 
-  g_warning ("Key event: %s, %x\n",
+  /* FIXME: vino caches these, and we should too */
+  keycode = XKeysymToKeycode (display, keySym);
+
+  g_print ("Code is %x and sym was %x\n", keycode, keySym);
+
+  /*
+  g_warning ("Key event: %s, %x, on %d\n",
 	     down?"down":"up",
-	     keySym);
+	     keySym,
+	     private->xtest_keyboard->device_id);
+  */
+  /*
+  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+		      GDK_WINDOW_XID (private->window),
+		      &current_pointer);
 
-  XTestFakeKeyEvent(display, keySym, down, 0);
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      GDK_WINDOW_XID (private->window),
+		      private->master_pointer);
+  */
+  XSetInputFocus (gdk_x11_get_default_xdisplay (),
+		  GDK_WINDOW_XID (private->window),
+		  RevertToNone,
+		  CurrentTime);
+
+  XTestFakeKeyEvent (display,
+		     keycode,
+		     down,
+		     0);
+  /*
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      GDK_WINDOW_XID (private->window),
+		      current_pointer);
+  */
 }
 
 static void
@@ -169,8 +202,14 @@ add_mpx_for_window (Window window, VncPrivate *private)
   XIAddMasterInfo add;
   gchar *name = g_strdup_printf("xzibit-p-%07x",
 				(int) window);
+  int ndevices;
+  XIDeviceInfo *devices, *device;
+  int i;
+  int current_pointer;
 
+  return;
 
+  private->master_pointer = 0;
   private->xtest_pointer = NULL;
   private->xtest_keyboard = NULL;
 
@@ -187,10 +226,6 @@ add_mpx_for_window (Window window, VncPrivate *private)
 		     (XIAnyHierarchyChangeInfo*) &add, 1);
 
   /* now see whether it's in the list */
-
-  int ndevices;
-  XIDeviceInfo *devices, *device;
-  int i;
 
   devices = XIQueryDevice(gdk_x11_get_default_xdisplay (),
 			  XIAllDevices, &ndevices);
@@ -211,6 +246,10 @@ add_mpx_for_window (Window window, VncPrivate *private)
 	  case XISlaveKeyboard:
 	    private->xtest_keyboard = XOpenDevice (gdk_x11_get_default_xdisplay (),
 						   device->deviceid);
+	    break;
+
+	  case XIMasterPointer:
+	    private->master_pointer = device->deviceid;
 	    break;
 	  }
       }
