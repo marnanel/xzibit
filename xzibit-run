@@ -174,7 +174,12 @@ autoshare_stdout = autoshare_args.extend(['--display', ':3'])
 
 launch(autoshare_args, stdout=events)
 
-if test=='key':
+if test=='keybehind':
+    time.sleep(3)
+    launch(['xlogo', '-display', ':3'])
+    time.sleep(3)
+
+if test in ('key', 'keybehind'):
     time.sleep(10)
     os.system('DISPLAY=:4 ./type-a-key')
     events.close()
