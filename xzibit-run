@@ -8,9 +8,11 @@ import os
 import sys
 import time
 import signal
+import socket
 from subprocess import Popen
 
 pidsfile = '/tmp/xzibit-pids'
+busfile = '/tmp/xzibit-bus'
 stderr = file('/tmp/xzibit-stderr', 'a')
 
 def banner():
@@ -42,6 +44,30 @@ def test_x_server_active(display):
             abort()
 
 banner()
+
+def test_bus():
+    try:
+        server = socket.socket(socket.AF_UNIX,
+                               socket.SOCK_STREAM)
+        server.connect(busfile)
+        server.close()
+
+        return True
+    except:
+        return False
+
+have_bus = False
+
+if os.path.exists(busfile):
+    have_bus = test_bus()
+
+if not have_bus:
+    # so launch one
+    os.system('python xzibit-bus-server.py&')
+    time.sleep(1)
+    if not test_bus():
+        print "Could not start xzibit bus."
+        abort()
 
 if os.path.exists(pidsfile) and False:
     for pid in file(pidsfile,'r').read().split('\n'):
