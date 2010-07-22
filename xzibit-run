@@ -1,0 +1,90 @@
+#!/usr/bin/python
+#
+# Test script for xzibit.
+#
+# Thomas Thurman, July 2010.
+
+import os
+import sys
+import time
+import signal
+from subprocess import Popen
+
+pidsfile = '/tmp/xzibit-pids'
+stderr = file('/tmp/xzibit-stderr', 'a')
+
+def banner():
+    print ' - = - X Z I B I T - = -'
+
+def abort():
+    print 'Aborting.'
+    sys.exit(1)
+
+def launch(args):
+    p = Popen(args, stderr=stderr)
+    if p.returncode > 0:
+        print 'When I ran the command ',command
+        print 'I was told: ',p.returncode
+        print 'This was unexpected.'
+        abort()
+    file(pidsfile, 'a').write("%d\n" % (p.pid,))
+
+
+def test_x_server_active(display):
+    filename = '/tmp/.X%d-lock' % (display,)
+    if os.path.exists(filename):
+        test = os.system("DISPLAY=:%d xdpyinfo >/dev/null 2>/dev/null" % (display,))
+
+        if test==0:
+            print 'An X server for display :%d is running.' % (display,)
+            print 'Please close it and try again.'
+            print "If it isn't, please delete the file %s ." % (filename,)
+            abort()
+
+banner()
+
+if os.path.exists(pidsfile) and False:
+    for pid in file(pidsfile,'r').read().split('\n'):
+        try:
+            pid = int(pid)
+            os.kill(pid, signal.SIGKILL)
+        except:
+            pass
+    file(pidsfile, 'w').write('')
+
+test_x_server_active(3)
+test_x_server_active(4)
+
+# -screen HAS to have a height value of 480 or it messes up
+# the nested server.  This is apparently known about.
+
+launch(['Xephyr','-screen','200x480',':3','-title','xzibit :3'])
+launch(['Xephyr','-screen','200x480',':4','-title','xzibit :4'])
+
+time.sleep(1) # give them a moment to load
+
+# Xephyr doesn't and won't support -geometry
+# http://bugs.freedesktop.org/show_bug.cgi?id=12221
+launch(['wmctrl','-r','xzibit :3','-e','0,0,0,-1,-1'])
+launch(['wmctrl','-r','xzibit :4','-e','0,220,0,-1,-1'])
+
+# Move the terminal as well.  (Should have a way to turn this off)
+screen_width = os.popen('xwininfo -root|grep Width').readline()[9:]
+screen_height = os.popen('xwininfo -root|grep Height').readline()[10:]
+launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
+        '0,450,0,%d,%d' % (int(screen_width)-450,
+                           int(screen_height)-100),
+        '-b', 'remove,maximized_vert,maximized_horz'])
+
+launch(['../src/mutter', '--replace', '--sync', '--display', ':3'])
+launch(['../src/mutter', '--replace', '--sync', '--display', ':4'])
+
+time.sleep(1)
+
+launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
+
+# Here we tried to add wallpaper to differentiate them visually
+# but mutter doesn't like it
+
+launch(['./autoshare', '--pulse', '--display', ':3'])
+
