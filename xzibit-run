@@ -78,6 +78,16 @@ def succeed(whether, diagnostic=None):
     if diagnostic:
         print diagnostic
 
+def tidy_up():
+    if os.path.exists(pidsfile):
+        for pid in file(pidsfile,'r').read().split('\n'):
+            try:
+                pid = int(pid)
+                os.kill(pid, signal.SIGKILL)
+            except:
+                pass
+        file(pidsfile, 'w').write('')
+
 banner()
 
 try:
@@ -117,14 +127,8 @@ if not have_bus:
         print "Could not start xzibit bus."
         abort()
 
-if os.path.exists(pidsfile) and False:
-    for pid in file(pidsfile,'r').read().split('\n'):
-        try:
-            pid = int(pid)
-            os.kill(pid, signal.SIGKILL)
-        except:
-            pass
-    file(pidsfile, 'w').write('')
+# optionally, we could call tidy_up here
+# tidy_up()
 
 test_x_server_active(3)
 test_x_server_active(4)
@@ -198,3 +202,6 @@ if test=='key':
         diagnostic = 'The keystroke arrived but was misinterpreted.'
 
     succeed(success, diagnostic)
+
+if test!='basic':
+    tidy_up()
