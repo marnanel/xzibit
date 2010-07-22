@@ -9,12 +9,13 @@ import sys
 import time
 import signal
 import socket
-from subprocess import Popen
+from subprocess import Popen, PIPE
 import getopt
 
 pidsfile = '/tmp/xzibit-pids'
 busfile = '/tmp/xzibit-bus'
 stderr = file('/tmp/xzibit-stderr', 'a')
+test = 'basic'
 
 def usage():
     print 'Usage:'
@@ -36,15 +37,15 @@ def abort():
     print 'Aborting.'
     sys.exit(1)
 
-def launch(args):
-    p = Popen(args, stderr=stderr)
+def launch(args, stdout=None):
+    devnull = file('/dev/null')
+    p = Popen(args, stdout=stdout, stderr=devnull)
     if p.returncode > 0:
         print 'When I ran the command ',command
         print 'I was told: ',p.returncode
         print 'This was unexpected.'
         abort()
     file(pidsfile, 'a').write("%d\n" % (p.pid,))
-
 
 def test_x_server_active(display):
     filename = '/tmp/.X%d-lock' % (display,)
@@ -68,6 +69,15 @@ def test_bus():
     except:
         return False
 
+def succeed(whether, diagnostic=None):
+    if whether:
+        print ' * * * P A S S * * *'
+    else:
+        print ' * * * F A I L * * *'
+
+    if diagnostic:
+        print diagnostic
+
 banner()
 
 try:
@@ -85,6 +95,14 @@ for (opt, arg) in opts:
 if options.has_key('--help') or options=={}:
     usage()
     sys.exit()
+
+if options.has_key('--test'):
+    test = options['--test']
+
+if test=='key':
+    options['--events'] = ''
+    if options.has_key('--pulse'):
+        del options['--pulse']
 
 have_bus = False
 
@@ -147,8 +165,36 @@ if options.has_key('--pulse'):
     autoshare_args.extend(['--pulse'])
 if options.has_key('--events'):
     autoshare_args.extend(['--events'])
-autoshare_args.extend(['--display', ':3'])
+events = file('/tmp/xzibit-events', 'w')
+autoshare_stdout = autoshare_args.extend(['--display', ':3'])
 
-print autoshare_args
-launch(autoshare_args)
+launch(autoshare_args, stdout=events)
 
+if test=='key':
+    time.sleep(10)
+    os.system('DISPLAY=:4 ./type-a-key')
+    events.close()
+    events = file('/tmp/xzibit-events','r').readlines()
+
+    good = 0
+    bad = 0
+
+    for event in events:
+        if 'keysym' in event:
+            print event
+            if 'keysym 0x63, c' in event:
+                good += 1
+            else:
+                bad += 1
+
+    if good==0 and bad==0:
+        success = False
+        diagnostic = 'The keystroke did not arrive.'
+    elif bad==0:
+        success = True
+        diagnostic = None
+    else:
+        success = False
+        diagnostic = 'The keystroke arrived but was misinterpreted.'
+
+    succeed(success, diagnostic)
