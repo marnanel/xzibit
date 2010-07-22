@@ -48,12 +48,15 @@ static const GOptionEntry options[] =
 static void
 xev (Window xid)
 {
-  char **argv = g_malloc (sizeof(char*) * 4);
+  char **argv = g_malloc (sizeof(char*) * 6);
 
   argv[0] = "xev";
   argv[1] = "-id";
   argv[2] = g_strdup_printf("0x%x", (int) xid);
-  argv[3] = NULL;
+  argv[3] = "-display";
+  argv[4] = g_strdup_printf("%s",
+                            DisplayString (gdk_x11_get_default_xdisplay ()));
+  argv[5] = NULL;
 
   g_spawn_async ("/",
 		 argv,
