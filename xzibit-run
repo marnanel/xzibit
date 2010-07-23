@@ -154,6 +154,7 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
                            int(screen_height)-100),
         '-b', 'remove,maximized_vert,maximized_horz'])
 
+# TODO: an option to replace the following with: launch(['strace', '-f', '-e', 'trace=file', '../src/mutter', '--replace', '--sync', '--display', ':3'])
 launch(['../src/mutter', '--replace', '--sync', '--display', ':3'])
 launch(['../src/mutter', '--replace', '--sync', '--display', ':4'])
 

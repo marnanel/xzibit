@@ -8,6 +8,18 @@
 #include <X11/extensions/XI2.h>
 #include <X11/extensions/XInput.h>
 
+/*
+ * Define this if your X server is a bit crappy
+ * and gets XTest with XInput2 wrong.
+ *
+ * This is more likely to work, but fails if
+ * the window isn't focussed (so "key" will
+ * pass, but "keybehind" will fail).
+ *
+ * (If you're not sure, run the unit tests.)
+ */
+#define USE_OLD_XTEST
+
 typedef struct _VncPrivate {
   /* FIXME: This is also rfb_screen->port;
      don't store it in both places */
@@ -159,6 +171,8 @@ handle_keyboard_event (rfbBool down,
   int current_pointer;
   int count;
   int keycode;
+  int dummy;
+  int axes[1] = { 0 };
 
   /* FIXME: vino caches these, and we should too */
   keycode = XKeysymToKeycode (display, keySym);
@@ -171,29 +185,71 @@ handle_keyboard_event (rfbBool down,
 	     keySym,
 	     private->xtest_keyboard->device_id);
   */
-  /*
-  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
-		      GDK_WINDOW_XID (private->window),
-		      &current_pointer);
 
-  XISetClientPointer (gdk_x11_get_default_xdisplay (),
-		      GDK_WINDOW_XID (private->window),
-		      private->master_pointer);
-  */
-  XSetInputFocus (gdk_x11_get_default_xdisplay (),
+  /* Possibly we don't need to do all this
+   * on EVERY keystroke.
+   */
+
+  /* Make absolutely sure we have initialised everything */
+  
+  if (XTestQueryExtension (gdk_x11_get_default_xdisplay(),
+			   &dummy,
+			   &dummy,
+			   &dummy,
+			   &dummy)==False)
+    {
+      g_print("This should not have failed.\n");
+    }
+
+  XSetInputFocus (display,
 		  GDK_WINDOW_XID (private->window),
 		  RevertToNone,
 		  CurrentTime);
+
+
+#ifdef USE_OLD_XTEST
 
   XTestFakeKeyEvent (display,
 		     keycode,
 		     down,
 		     0);
-  /*
+
+#else
+
+  if (!XQueryExtension(gdk_x11_get_default_xdisplay (), "XInputExtension", &dummy, &dummy, &dummy)) {
+    g_print("X Input extension not available.\n");
+  }
+
+  int major = 2, minor = 0;
+  if (XIQueryVersion(gdk_x11_get_default_xdisplay (), &major, &minor) == BadRequest) {
+    g_print("XI2 not available. Server supports %d.%d\n", major, minor);
+  }
+
+  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+		      GDK_WINDOW_XID (private->window),
+		      &current_pointer);
+  
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      GDK_WINDOW_XID (private->window),
+		      private->master_pointer);
+
+  XSetInputFocus (display,
+		  GDK_WINDOW_XID (private->window),
+		  RevertToNone,
+		  CurrentTime);
+
+
+  XTestFakeDeviceKeyEvent (display,
+			   private->xtest_keyboard,
+			   keycode,
+			   down,
+			   &axes, 0,
+			   0);
   XISetClientPointer (gdk_x11_get_default_xdisplay (),
 		      GDK_WINDOW_XID (private->window),
 		      current_pointer);
-  */
+
+#endif
 }
 
 static void
@@ -206,8 +262,6 @@ add_mpx_for_window (Window window, VncPrivate *private)
   XIDeviceInfo *devices, *device;
   int i;
   int current_pointer;
-
-  return;
 
   private->master_pointer = 0;
   private->xtest_pointer = NULL;
