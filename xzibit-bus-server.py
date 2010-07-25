@@ -23,8 +23,15 @@ import os
 import os.path
 import sys
 
+# FIXME: Commandline options for these
+verbose = 0 # Print debugging info
+traffic = 1 # Print bus traffic to stdout
+
 def dump(s):
     "Attempts to print information about data flowing over the bus"
+
+    if not traffic:
+        return
 
     message_type = ord(s[0])
 
@@ -61,7 +68,8 @@ while 1:
     for sock in ready:
         if sock==server:
             (connection, addr) = server.accept()
-            print 'client connected'
+            if verbose:
+                print 'client connected'
             waiting.append(connection)
         else:
             got = ''
@@ -71,7 +79,8 @@ while 1:
                 pass
             if len(got)==0:
                 # assume eof
-                print 'client disconnected'
+                if verbose:
+                    print 'client disconnected'
                 waiting.remove(sock)
             else:
                 buffer[sock.fileno()] = buffer.get(sock.fileno(), '') + got
@@ -97,6 +106,7 @@ while 1:
                     # don't send to the server socket,
                     # nor to the originating socket
                     continue
-                print '(sent to ',remote,')'
+                if verbose:
+                    print '(sent to ',remote,')'
                 remote.send(buffer[fd][0:needed])
             buffer[fd] = buffer[fd][needed:]
