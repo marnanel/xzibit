@@ -16,6 +16,14 @@ pidsfile = '/tmp/xzibit-pids'
 busfile = '/tmp/xzibit-bus'
 stderr = file('/tmp/xzibit-stderr', 'a')
 test = 'basic'
+# List of the tests we support; don't include "basic"
+# since that's not really a test.
+tests = {
+    'key': 'Send a keystroke',
+    'keybehind': 'Send a keystroke to an unfocused window',
+    'click': 'Send a mouse click',
+    'clickbehind': 'Send a mouse click to an unfocused window',
+}
 
 def usage():
     print 'Usage:'
@@ -95,9 +103,14 @@ def tidy_up():
 
 banner()
 
+################################################################
+# Parse command-line options.
+
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "", ["test=", "pulse", "events",
-                                                  "help"])
+    opts, args = getopt.getopt(sys.argv[1:], "",
+                               ["test=", "pulse", "events",
+                                "list",
+                                "help"])
 except getopt.GetoptError, err:
     print str(err)
     usage()
@@ -109,7 +122,12 @@ for (opt, arg) in opts:
 
 if options.has_key('--help') or options=={}:
     usage()
-    sys.exit()
+    sys.exit(0)
+
+if options.has_key('--list'):
+    for test in sorted(tests):
+        print '%s\t%s' % (test, tests[test])
+    sys.exit(0)
 
 if options.has_key('--test'):
     test = options['--test']
@@ -120,6 +138,12 @@ if test=='key':
     options['--events'] = ''
     if options.has_key('--pulse'):
         del options['--pulse']
+
+# Check they're asking for a real test.
+
+if not test in tests and test!='basic':
+    print 'Test %s is not known.' % (test)
+    abort()
 
 ################################################################
 
