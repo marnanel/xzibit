@@ -35,7 +35,7 @@ def banner():
 
 def abort():
     print 'Aborting.'
-    sys.exit(1)
+    sys.exit(2)
 
 def launch(args, stdout=None):
     devnull = file('/dev/null')
@@ -78,6 +78,11 @@ def succeed(whether, diagnostic=None):
     if diagnostic:
         print diagnostic
 
+    if whether:
+        sys.exit(0)
+    else:
+        sys.exit(1)
+
 def tidy_up():
     if os.path.exists(pidsfile):
         for pid in file(pidsfile,'r').read().split('\n'):
@@ -108,6 +113,8 @@ if options.has_key('--help') or options=={}:
 
 if options.has_key('--test'):
     test = options['--test']
+
+# Some tests force some options.
 
 if test=='key':
     options['--events'] = ''
@@ -146,6 +153,8 @@ if not have_bus:
         abort()
 
 # optionally, we could call tidy_up here
+# to close old Xephyr sessions before we
+# start.
 # tidy_up()
 
 test_x_server_active(3)
@@ -173,11 +182,15 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
         '-b', 'remove,maximized_vert,maximized_horz'])
 
 # TODO: an option to replace the following with: launch(['strace', '-f', '-e', 'trace=file', '../src/mutter', '--replace', '--sync', '--display', ':3'])
+# FIXME: the stderr of these processes needs to be monitored
+# to check whether it contains an error saying xzibit could
+# not be loaded
 launch(['../src/mutter', '--replace', '--sync', '--display', ':3'])
 launch(['../src/mutter', '--replace', '--sync', '--display', ':4'])
 
 time.sleep(1)
 
+# Give the terminal focus again.
 launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
 
 # Here we tried to add wallpaper to differentiate them visually
@@ -189,12 +202,14 @@ if options.has_key('--pulse'):
 if options.has_key('--events'):
     autoshare_args.extend(['--events'])
 events = file('/tmp/xzibit-events', 'w')
-autoshare_stdout = autoshare_args.extend(['--display', ':3'])
+autoshare_args.extend(['--display', ':3'])
 
 launch(autoshare_args, stdout=events)
 
-if test=='keybehind':
+if test in ('keybehind', 'clickbehind'):
     time.sleep(3)
+    # FIXME: possibly we shouldn't rely on
+    # having xlogo around?
     launch(['xlogo', '-display', ':3'])
     time.sleep(3)
 
@@ -226,6 +241,12 @@ if test in ('key', 'keybehind'):
         diagnostic = 'The keystroke arrived but was misinterpreted.'
 
     succeed(success, diagnostic)
+elif test in ('click', 'clickbehind'):
+    time.sleep(10)
+    os.system('DISPLAY=:4 ./click-the-mouse')
+    events.close()
+    events = file('/tmp/xzibit-events','r').readlines()
+    print events
 
 if test!='basic':
     tidy_up()
