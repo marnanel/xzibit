@@ -544,6 +544,10 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
                              PropModeReplace,
                              (const unsigned char*) &window_is_shared,
                              1);
+            
+            share_window (dpy,
+                          window,
+                          plugin);
           }
 
         XFree (transiency);
