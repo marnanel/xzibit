@@ -92,9 +92,11 @@ struct _MutterXzibitPluginPrivate
   MutterPluginInfo       info;
 
   /**
-   * The atom _XZIBIT_SHARE.
+   * Atom values.
    */
   int xzibit_share_atom;
+  int wm_transient_for_atom;
+  int cardinal_atom;
 
   /**
    * The FD of the xzibit bus, which we're using until we switch
@@ -164,6 +166,8 @@ start (MutterPlugin *plugin)
     }
 
   priv->xzibit_share_atom = 0;
+  priv->wm_transient_for_atom = 0;
+  priv->cardinal_atom = 0;
 
   priv->bus_count = 0;
   priv->bus_reading_size = 1;
@@ -230,13 +234,14 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 }
 
 static void
-share_window (Window window, MutterPlugin *plugin)
+share_window (Display *dpy,
+              Window window, MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GError *error = NULL;
   unsigned char message[11];
   int port;
-
+      
   g_warning ("Share window...");
   port = vnc_port (window);
   g_warning ("Port is %d", port);
@@ -247,7 +252,7 @@ share_window (Window window, MutterPlugin *plugin)
       port = vnc_port (window);
       g_warning ("Port is really %d", port);
     }
-  
+
   /* and tell our counterpart about it */
 
   message[0] = 7; /* length */
@@ -302,7 +307,8 @@ receive_window (gpointer data)
 }
 
 static void
-set_sharing_state (Window window, int sharing_state, MutterPlugin *plugin)
+set_sharing_state (Display *dpy,
+                   Window window, int sharing_state, MutterPlugin *plugin)
 {
   if (sharing_state == 2 || sharing_state == 3)
     {
@@ -317,7 +323,7 @@ set_sharing_state (Window window, int sharing_state, MutterPlugin *plugin)
     {
     case 1:
       /* we are starting to share this window */
-      share_window (window, plugin);
+      share_window (dpy, window, plugin);
       break;
 
     case 0:
@@ -421,7 +427,127 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     {
     case MapNotify:
       {
-        /* g_warning ("(xzibit plugin map event)\n"); */
+        XMapEvent *map_event = (XMapEvent*) event;
+        Window window = map_event->window;
+        Atom actual_type;
+        int actual_format;
+        unsigned long n_items, bytes_after;
+        unsigned char *property;
+        guint32 *transiency;
+        guint32 *sharing;
+        Display *dpy = map_event->display;
+
+        if (priv->wm_transient_for_atom == 0)
+          {
+            priv->wm_transient_for_atom = XInternAtom(dpy,
+                                                      "WM_TRANSIENT_FOR",
+                                                      False);
+          }
+        
+        if (priv->cardinal_atom == 0)
+          {
+            priv->cardinal_atom = XInternAtom(dpy,
+                                              "CARDINAL",
+                                              False);
+          }
+
+        /* is it transient? */
+        if (XGetWindowProperty(dpy,
+                               window,
+                               priv->wm_transient_for_atom,
+                               0,
+                               4,
+                               False,
+                               XInternAtom(dpy,
+                                           "WINDOW",
+                                           False),
+                               &actual_type,
+                               &actual_format,
+                               &n_items,
+                               &bytes_after,
+                               &property)!=Success)
+          break; /* we can't tell */
+
+        if (property == NULL)
+          break; /* no, it isn't */
+
+        transiency = (guint32*) property;
+
+        g_warning ("Transiency of %x = %x", window, *transiency);
+
+        /*
+        if (*transiency == gdk_x11_the_root_window (... FIXME ...)
+            break; -- yes it is, but to the root
+            */
+
+        if (*transiency == window)
+          break; /* yes it is, but to itself */
+
+        /* So if we get here, it's transient to something.
+        * Is it transient to a shared window? */
+
+        /* FIXME: Need an ensure_atoms method */
+        if (priv->xzibit_share_atom == 0)
+          {
+            priv->xzibit_share_atom = XInternAtom(dpy,
+                                                  "_XZIBIT_SHARE",
+                                                  False);
+          }
+
+        /* FIXME:
+           Crazy values for WM_TRANSIENT_FOR will cause
+           BadWindow here, which will mean we crash.
+           We should not crash.
+        */
+        if (XGetWindowProperty(dpy,
+                               *transiency,
+                               priv->xzibit_share_atom,
+                               0,
+                               4,
+                               False,
+                               priv->cardinal_atom,
+                               &actual_type,
+                               &actual_format,
+                               &n_items,
+                               &bytes_after,
+                               &property)!=Success)
+          {
+            g_warning ("can't read sharing\n");
+            XFree (transiency);
+            break; /* we can't tell */
+          }
+
+        if (property == NULL)
+          {
+            g_warning ("no transiency");
+            XFree (transiency);
+            XFree (property);
+            break; /* no, it isn't */
+          }
+
+        sharing = (guint32*) property;
+
+        if (*sharing==1)
+          {
+            /* This is what we've been looking for!
+             * The window is transient to a shared window.
+             * It should be shared itself.
+             */
+
+            guint32 window_is_shared = 1;
+        
+            XChangeProperty (dpy,
+                             window,
+                             priv->wm_transient_for_atom,
+                             priv->cardinal_atom,
+                             32,
+                             PropModeReplace,
+                             (const unsigned char*) &window_is_shared,
+                             1);
+          }
+
+        XFree (transiency);
+        XFree (sharing);
       }
       return FALSE;
 
@@ -466,7 +592,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
             XFree (value);
           }
 
-        set_sharing_state (property->window,
+        set_sharing_state (property->display,
+                           property->window,
                            new_state,
                            plugin);
       
