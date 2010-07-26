@@ -70,17 +70,29 @@ fakeMouseClick (GdkWindow *window,
 
   g_warning ("Faking click at %d,%d", x, y);
 
+  g_warning ("Which is really %d,%d", ox+x, oy+y);
+
+#ifdef USE_OLD_XTEST
+
   XTestFakeMotionEvent (display,
 			0, /* FIXME use the proper screen number */
 			ox+x, oy+y,
 			CurrentTime);
   XTestFakeButtonEvent (display,
-			1, is_press, 100);
+			1,
+			True,
+			CurrentTime);
 
   /* we don't seem to get a release event, so... */
 
   XTestFakeButtonEvent (display,
 			1, False, 200);
+
+#else
+
+#error "XInput2 for mouse not yet implemented"
+
+#endif
 
 }
 
