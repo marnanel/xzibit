@@ -134,7 +134,8 @@ if options.has_key('--test'):
 
 # Some tests force some options.
 
-if test=='key':
+if test in ('key', 'keybehind',
+            'click', 'clickbehind'):
     options['--events'] = ''
     if options.has_key('--pulse'):
         del options['--pulse']
