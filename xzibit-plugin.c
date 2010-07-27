@@ -834,8 +834,6 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
   GList *metadata;
   Display *dpy = map_event->display;
 
-  g_print ("New window is %x\n", map_event->window);
-
   if (XGetWindowProperty(dpy,
                          map_event->window,
                          XInternAtom(dpy,
@@ -851,30 +849,35 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
                          &bytes_after,
                          &property)!=Success)
     {
-      g_print ("Can't read its properties\n");
       return;
     }
 
   if (n_items==0)
     {
-      g_print ("It is not ours\n");
       return;
     }
 
   xzibit_id = *((int*) property);
   XFree (property);
 
-  g_print ("Its xzibit-id is %d", xzibit_id);
-
   metadata = g_hash_table_lookup (priv->postponed_metadata,
                                   &xzibit_id);
 
   if (metadata)
     {
-      g_print ("There IS metadata.\n");
+      GList *cursor = metadata;
+      while (cursor)
+        {
+          apply_metadata_now (plugin,
+                              map_event->window,
+                              cursor->data);
+          g_free (cursor->data);
+
+          cursor = cursor->next;
+        }
+     
+      g_list_free (cursor);
     }
-  else
-    g_print ("THere is NO metadata\n");
 }
 
 static gboolean
