@@ -35,7 +35,7 @@ char* window_types[][2] = {
   {"S", "_NET_WM_WINDOW_TYPE_SPLASH"},
   {"T", "_NET_WM_WINDOW_TYPE_TOOLTIP"},
   {"U", "_NET_WM_WINDOW_TYPE_UTILITY"},
-  {"X", "_NET_WM_WINDOW_TYPE_NORMAL "},
+  {"X", "_NET_WM_WINDOW_TYPE_NORMAL"},
   {0, 0}
 };
 
