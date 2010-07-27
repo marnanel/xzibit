@@ -20,6 +20,26 @@
  */
 #define USE_OLD_XTEST
 
+/**
+ * The codes for various types of window,
+ * mapped to their naes in the EWMH spec.
+ */
+char* window_types[][2] = {
+  { "B", "_NET_WM_WINDOW_TYPE_TOOLBAR"},
+  {"C", "_NET_WM_WINDOW_TYPE_COMBO"},
+  {"D", "_NET_WM_WINDOW_TYPE_DIALOG"},
+  {"M", "_NET_WM_WINDOW_TYPE_MENU"},
+  {"N", "_NET_WM_WINDOW_TYPE_NOTIFICATION"},
+  {"P", "_NET_WM_WINDOW_TYPE_POPUP_MENU"},
+  {"R", "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU"},
+  {"S", "_NET_WM_WINDOW_TYPE_SPLASH"},
+  {"T", "_NET_WM_WINDOW_TYPE_TOOLTIP"},
+  {"U", "_NET_WM_WINDOW_TYPE_UTILITY"},
+  {"X", "_NET_WM_WINDOW_TYPE_NORMAL "},
+  {0, 0}
+};
+
+
 typedef struct _VncPrivate {
   /* FIXME: This is also rfb_screen->port;
      don't store it in both places */

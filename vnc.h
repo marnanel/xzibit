@@ -36,6 +36,8 @@ void vnc_supply_pixmap (Window id,
  */
 void vnc_stop (Window id);
 
+extern char* window_types[][2];
+
 #endif /* !VNC_H */
 
 /* eof vnc.h */
