@@ -109,6 +109,7 @@ struct _MutterXzibitPluginPrivate
   int bus_reading_size;
   long bus_size;
   unsigned char *bus_buffer;
+  Display *dpy;
 
   /**
    * Xzibit IDs mapped to XIDs on the current
@@ -183,6 +184,7 @@ start (MutterPlugin *plugin)
   priv->wm_transient_for_atom = 0;
   priv->cardinal_atom = 0;
 
+  priv->dpy = NULL;
   priv->bus_count = 0;
   priv->bus_reading_size = 1;
   priv->bus_size = 0;
@@ -237,8 +239,39 @@ apply_metadata_now (MutterPlugin *plugin,
                     Window window,
                     unsigned char *buffer)
 {
-  g_print ("(Applying metadata to %x -- stub)",
-           window);
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  int metadata_type = buffer[1]*256 + buffer[0];
+  Display *dpy = priv->dpy;
+
+  switch (metadata_type)
+    {
+    case XZIBIT_METADATA_NAME:
+      {
+        /* FIXME: we also need to update WM_NAME */
+
+        XChangeProperty (dpy,
+                         window,
+                         XInternAtom(dpy,
+                                     "_NET_WM_NAME",
+                                     False),
+                         XInternAtom(dpy,
+                                     "UTF8_STRING",
+                                     False),
+                         8,
+                         PropModeReplace,
+                         buffer+2,
+                         strlen(buffer+2));
+      }
+      break;
+
+    case XZIBIT_METADATA_TYPE:
+      {
+        g_print ("(update type here -- stub)\n");
+      }
+      break;
+    }
+  g_print ("(Applying metadata to %x -- type %d, stub)",
+           window, metadata_type);
 }
 
 static void
@@ -255,8 +288,6 @@ apply_metadata (MutterPlugin *plugin,
 
   if (xid)
     {
-      /* FIXME: should we pass in "size" so
-       * a_m_n can check for protocol violations? */
       apply_metadata_now (plugin,
                           *xid,
                           buffer+2);
@@ -505,13 +536,13 @@ share_window (Display *dpy,
 
   send_metadata_to_bus (plugin,
                         port, /* == xzibit id */
-                        2, /* name of window */
+                        XZIBIT_METADATA_NAME,
                         name_of_window,
                         -1);
 
   send_metadata_to_bus (plugin,
                         port,
-                        3, /* type of window */
+                        XZIBIT_METADATA_TYPE,
                         type_of_window,
                         1);
 
@@ -622,6 +653,7 @@ handle_message_from_bus (MutterPlugin *plugin,
                        buffer+1,
                        size-1);
       }
+      break;
 
     default:
       g_warning ("Unknown message type: %d\n", opcode);
@@ -664,7 +696,9 @@ check_for_bus_reads (GIOChannel *source,
           priv->bus_reading_size = 0;
           priv->bus_count = -1;
 
-          priv->bus_buffer = g_malloc (priv->bus_size);
+          priv->bus_buffer = g_malloc (priv->bus_size+1);
+          /* make sure it's null-terminated */
+          priv->bus_buffer[priv->bus_size] = 0;
         }
     } else {
       priv->bus_buffer[priv->bus_count] = buffer[i];
@@ -880,6 +914,18 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
     }
 }
 
+static void
+ensure_display(MutterPlugin *plugin,
+               Display *known_good)
+{
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+
+  if (priv->dpy==NULL)
+    {
+      priv->dpy = known_good;
+    }
+}
+
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
@@ -890,6 +936,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     {
     case MapNotify:
       {
+        ensure_display (plugin, ((XMapEvent*) event)->display);
+
         share_transiency_on_map (plugin, event);
         check_for_pending_metadata_on_map (plugin, event);
       }
@@ -899,6 +947,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
       {
         XPropertyEvent *property = (XPropertyEvent*) event;
         int new_state = 0;
+
+        ensure_display (plugin, property->display);
 
         if (priv->xzibit_share_atom == 0)
           {
