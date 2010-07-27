@@ -267,11 +267,55 @@ apply_metadata_now (MutterPlugin *plugin,
     case XZIBIT_METADATA_TYPE:
       {
         g_print ("(update type here -- stub)\n");
+
+        int i=0;
+        char type = buffer[2];
+
+        while (window_types[i][0])
+          {
+            g_print ("%c %c\n", window_types[i][0][0], type);
+            if (window_types[i][0][0]==type)
+              {
+                Atom atom = 0;
+                g_print ("We know this: it's %s",
+                         window_types[i][1]);
+                
+                atom = XInternAtom (dpy,
+                                    window_types[i][1],
+                                    True);
+                
+                if (atom==0)
+                  return;
+       
+                g_print ("Atom==%d", (int) atom);
+         
+                XChangeProperty (dpy,
+                                 window,
+                                 XInternAtom(dpy,
+                                             "_NET_WM_WINDOW_TYPRE",
+                                             False),
+                                 XInternAtom(dpy,
+                                             "ATOM",
+                                             False),
+                                 32,
+                                 PropModeReplace,
+                                 (unsigned char*) &atom,
+                                 1);
+                
+                /* and we're done */
+                return;
+              }
+            i++;
+          }
+        g_warning ("Request to set %x to an unknown type %c",
+                   (int) window, type);
       }
-      break;
+
+    default:
+      g_warning ("Request to set metadata on %x of type %d "
+                 "which we don't know", (int) window,
+                 metadata_type);
     }
-  g_print ("(Applying metadata to %x -- type %d, stub)",
-           window, metadata_type);
 }
 
 static void
@@ -737,6 +781,8 @@ share_transiency_on_map (MutterPlugin *plugin,
   guint32 *sharing;
   Display *dpy = map_event->display;
 
+  g_print ("Transiency start\n");
+
   if (priv->wm_transient_for_atom == 0)
     {
       priv->wm_transient_for_atom = XInternAtom(dpy,
@@ -750,6 +796,8 @@ share_transiency_on_map (MutterPlugin *plugin,
                                         "CARDINAL",
                                         False);
     }
+
+  g_print ("Checking %x\n", window);
 
   /* is it transient? */
   if (XGetWindowProperty(dpy,
@@ -773,7 +821,7 @@ share_transiency_on_map (MutterPlugin *plugin,
 
   transiency = (guint32*) property;
 
-  g_warning ("Transiency of %x = %x", window, *transiency);
+  g_print ("Transiency of %x = %x", window, *transiency);
 
   /*
     if (*transiency == gdk_x11_the_root_window (... FIXME ...)
@@ -799,6 +847,8 @@ share_transiency_on_map (MutterPlugin *plugin,
      BadWindow here, which will mean we crash.
      We should not crash.
   */
+  g_print ("Checking %x for transiency\n", *transiency);
+
   if (XGetWindowProperty(dpy,
                          *transiency,
                          priv->xzibit_share_atom,
@@ -905,12 +955,19 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
           apply_metadata_now (plugin,
                               map_event->window,
                               cursor->data);
+          /*
+            FIXME:
           g_free (cursor->data);
+          */
 
           cursor = cursor->next;
         }
      
+      /*
+        FIXME:
       g_list_free (cursor);
+      And remove it from the hash
+      */
     }
 }
 
