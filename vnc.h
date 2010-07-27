@@ -38,6 +38,11 @@ void vnc_stop (Window id);
 
 extern char* window_types[][2];
 
+#define XZIBIT_METADATA_TRANSIENCY 1
+#define XZIBIT_METADATA_NAME 2
+#define XZIBIT_METADATA_TYPE 3
+#define XZIBIT_METADATA_ICON 4
+
 #endif /* !VNC_H */
 
 /* eof vnc.h */
