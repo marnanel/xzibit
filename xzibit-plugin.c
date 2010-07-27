@@ -109,6 +109,19 @@ struct _MutterXzibitPluginPrivate
   int bus_reading_size;
   long bus_size;
   unsigned char *bus_buffer;
+
+  /**
+   * Xzibit IDs mapped to XIDs on the current
+   * server.  FIXME: Note that this assumes
+   * that there's only one remote xzibit,
+   * which we should reconsider.
+   */
+  GHashTable *remote_xzibit_id_to_xid;
+  /**
+   * Lists of metadata we need to set
+   * when a given window finally maps
+   */
+  GHashTable *postponed_metadata;
 };
 
 static void
@@ -200,6 +213,71 @@ start (MutterPlugin *plugin)
                       G_IO_IN,
                       check_for_bus_reads,
                       plugin);
+    }
+
+  priv->remote_xzibit_id_to_xid =
+    g_hash_table_new_full (g_int_hash,
+			   g_int_equal,
+			   g_free,
+			   g_free);
+
+  priv->postponed_metadata =
+    g_hash_table_new_full (g_int_hash,
+			   g_int_equal,
+			   g_free,
+			   NULL); /* we want lists
+                                     not to be freed
+                                     if we replace them
+                                     with later versions
+                                     of themselves! */
+}
+
+static void
+apply_metadata_now (MutterPlugin *plugin,
+                    Window window,
+                    unsigned char *buffer)
+{
+  g_print ("(Applying metadata to %x -- stub)",
+           window);
+}
+
+static void
+apply_metadata (MutterPlugin *plugin,
+                unsigned char *buffer,
+                int size)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  int xzibit_id = buffer[1]*256 + buffer[0];
+  Window *xid;
+
+  xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
+                             &xzibit_id);
+
+  if (xid)
+    {
+      /* FIXME: should we pass in "size" so
+       * a_m_n can check for protocol violations? */
+      apply_metadata_now (plugin,
+                          *xid,
+                          buffer+2);
+    }
+  else
+    {
+      Window *new_key = g_malloc(sizeof(Window));
+      GList *list = g_hash_table_lookup (priv->postponed_metadata,
+                                         &xzibit_id);
+      char *new_buffer = g_memdup (buffer+2,
+                                   size-2);
+      
+      *new_key = xzibit_id;
+      list = g_list_prepend (list, new_buffer);
+
+      g_hash_table_insert (priv->postponed_metadata,
+                           new_key,
+                           list);
+
+      g_print ("We remember a property for %x\n",
+               (int) xzibit_id);
     }
 }
 
@@ -445,17 +523,20 @@ share_window (Display *dpy,
 static gboolean
 receive_window (gpointer data)
 {
-  int port = GPOINTER_TO_INT (data);
+  int* args = (int*) data;
   GError *error = NULL;
-  const char **argvl = g_malloc(sizeof (char*) * 4);
-  char *port_as_string = g_strdup_printf("%d", port);
+  const char **argvl = g_malloc(sizeof (char*) * 6);
+  char *port_as_string = g_strdup_printf("%d", args[0]);
+  char *id_as_string = g_strdup_printf("%d", args[1]);
 
-  g_warning ("Receiving window on port %d\n", port);
+  g_warning ("Receiving window on port %d\n", args[0]);
 
   argvl[0] = "xzibit-rfb-client";
   argvl[1] = "-p";
   argvl[2] = port_as_string;
-  argvl[3] = 0;
+  argvl[3] = "-i";
+  argvl[4] = id_as_string;
+  argvl[5] = 0;
 
   g_spawn_async (
                  "/",
@@ -507,7 +588,8 @@ set_sharing_state (Display *dpy,
 }
 
 static void
-handle_message_from_bus (unsigned char *buffer,
+handle_message_from_bus (MutterPlugin *plugin,
+                         unsigned char *buffer,
                          int size)
 {
   int opcode;
@@ -521,11 +603,25 @@ handle_message_from_bus (unsigned char *buffer,
 
   switch (opcode)
     {
-    case 1:
-      g_timeout_add (3000,
-                     receive_window,
-                     GINT_TO_POINTER (buffer[6]<<8 | buffer[5]));
+    case 1: /* OPEN */
+      {
+        int data[] = {
+          /* xzibit ID is currently the same as port number */
+          (buffer[6]<<8 | buffer[5]),
+          (buffer[6]<<8 | buffer[5]),
+        };
+        g_timeout_add (3000,
+                       receive_window,
+                       data);
+      }
       break;
+
+    case 3: /* SET */
+      {
+        apply_metadata(plugin,
+                       buffer+1,
+                       size-1);
+      }
 
     default:
       g_warning ("Unknown message type: %d\n", opcode);
@@ -575,7 +671,8 @@ check_for_bus_reads (GIOChannel *source,
 
       if (priv->bus_count == priv->bus_size-1)
         {
-          handle_message_from_bus (priv->bus_buffer,
+          handle_message_from_bus (plugin,
+                                   priv->bus_buffer,
                                    priv->bus_size);
           g_free (priv->bus_buffer);
           priv->bus_count = -1;
@@ -590,6 +687,139 @@ check_for_bus_reads (GIOChannel *source,
   return TRUE;
 }
 
+static void
+share_transients_on_map (MutterPlugin *plugin,
+                         XEvent *event)
+{
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  XMapEvent *map_event = (XMapEvent*) event;
+  int i;
+  Window window = map_event->window;
+  Atom actual_type;
+  int actual_format;
+  unsigned long n_items, bytes_after;
+  unsigned char *property;
+  guint32 *transiency;
+  guint32 *sharing;
+  Display *dpy = map_event->display;
+
+  if (priv->wm_transient_for_atom == 0)
+    {
+      priv->wm_transient_for_atom = XInternAtom(dpy,
+                                                "WM_TRANSIENT_FOR",
+                                                False);
+    }
+        
+  if (priv->cardinal_atom == 0)
+    {
+      priv->cardinal_atom = XInternAtom(dpy,
+                                        "CARDINAL",
+                                        False);
+    }
+
+  /* is it transient? */
+  if (XGetWindowProperty(dpy,
+                         window,
+                         priv->wm_transient_for_atom,
+                         0,
+                         4,
+                         False,
+                         XInternAtom(dpy,
+                                     "WINDOW",
+                                     False),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)!=Success)
+    return; /* we can't tell */
+
+  if (property == NULL)
+    return; /* no, it isn't */
+
+  transiency = (guint32*) property;
+
+  g_warning ("Transiency of %x = %x", window, *transiency);
+
+  /*
+    if (*transiency == gdk_x11_the_root_window (... FIXME ...)
+    break; -- yes it is, but to the root
+  */
+
+  if (*transiency == window)
+    return; /* yes it is, but to itself */
+
+  /* So if we get here, it's transient to something.
+   * Is it transient to a shared window? */
+
+  /* FIXME: Need an ensure_atoms method */
+  if (priv->xzibit_share_atom == 0)
+    {
+      priv->xzibit_share_atom = XInternAtom(dpy,
+                                            "_XZIBIT_SHARE",
+                                            False);
+    }
+
+  /* FIXME:
+     Crazy values for WM_TRANSIENT_FOR will cause
+     BadWindow here, which will mean we crash.
+     We should not crash.
+  */
+  if (XGetWindowProperty(dpy,
+                         *transiency,
+                         priv->xzibit_share_atom,
+                         0,
+                         4,
+                         False,
+                         priv->cardinal_atom,
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)!=Success)
+    {
+      g_warning ("can't read sharing\n");
+      XFree (transiency);
+      return; /* we can't tell */
+    }
+  
+  if (property == NULL)
+    {
+      g_warning ("no transiency");
+      XFree (transiency);
+      XFree (property);
+      return; /* no, it isn't */
+    }
+
+  sharing = (guint32*) property;
+
+  if (*sharing==1)
+    {
+      /* This is what we've been looking for!
+       * The window is transient to a shared window.
+       * It should be shared itself.
+       */
+      
+      guint32 window_is_shared = 1;
+            
+      XChangeProperty (dpy,
+                       window,
+                       priv->wm_transient_for_atom,
+                       priv->cardinal_atom,
+                       32,
+                       PropModeReplace,
+                       (const unsigned char*) &window_is_shared,
+                       1);
+            
+      share_window (dpy,
+                    window,
+                    plugin);
+    }
+  
+  XFree (transiency);
+  XFree (sharing);
+}
+
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
@@ -600,131 +830,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     {
     case MapNotify:
       {
-        XMapEvent *map_event = (XMapEvent*) event;
-        Window window = map_event->window;
-        Atom actual_type;
-        int actual_format;
-        unsigned long n_items, bytes_after;
-        unsigned char *property;
-        guint32 *transiency;
-        guint32 *sharing;
-        Display *dpy = map_event->display;
-
-        if (priv->wm_transient_for_atom == 0)
-          {
-            priv->wm_transient_for_atom = XInternAtom(dpy,
-                                                      "WM_TRANSIENT_FOR",
-                                                      False);
-          }
-        
-        if (priv->cardinal_atom == 0)
-          {
-            priv->cardinal_atom = XInternAtom(dpy,
-                                              "CARDINAL",
-                                              False);
-          }
-
-        /* is it transient? */
-        if (XGetWindowProperty(dpy,
-                               window,
-                               priv->wm_transient_for_atom,
-                               0,
-                               4,
-                               False,
-                               XInternAtom(dpy,
-                                           "WINDOW",
-                                           False),
-                               &actual_type,
-                               &actual_format,
-                               &n_items,
-                               &bytes_after,
-                               &property)!=Success)
-          break; /* we can't tell */
-
-        if (property == NULL)
-          break; /* no, it isn't */
-
-        transiency = (guint32*) property;
-
-        g_warning ("Transiency of %x = %x", window, *transiency);
-
-        /*
-        if (*transiency == gdk_x11_the_root_window (... FIXME ...)
-            break; -- yes it is, but to the root
-            */
-
-        if (*transiency == window)
-          break; /* yes it is, but to itself */
-
-        /* So if we get here, it's transient to something.
-        * Is it transient to a shared window? */
-
-        /* FIXME: Need an ensure_atoms method */
-        if (priv->xzibit_share_atom == 0)
-          {
-            priv->xzibit_share_atom = XInternAtom(dpy,
-                                                  "_XZIBIT_SHARE",
-                                                  False);
-          }
-
-        /* FIXME:
-           Crazy values for WM_TRANSIENT_FOR will cause
-           BadWindow here, which will mean we crash.
-           We should not crash.
-        */
-        if (XGetWindowProperty(dpy,
-                               *transiency,
-                               priv->xzibit_share_atom,
-                               0,
-                               4,
-                               False,
-                               priv->cardinal_atom,
-                               &actual_type,
-                               &actual_format,
-                               &n_items,
-                               &bytes_after,
-                               &property)!=Success)
-          {
-            g_warning ("can't read sharing\n");
-            XFree (transiency);
-            break; /* we can't tell */
-          }
-
-        if (property == NULL)
-          {
-            g_warning ("no transiency");
-            XFree (transiency);
-            XFree (property);
-            break; /* no, it isn't */
-          }
-
-        sharing = (guint32*) property;
-
-        if (*sharing==1)
-          {
-            /* This is what we've been looking for!
-             * The window is transient to a shared window.
-             * It should be shared itself.
-             */
-
-            guint32 window_is_shared = 1;
-        
-            XChangeProperty (dpy,
-                             window,
-                             priv->wm_transient_for_atom,
-                             priv->cardinal_atom,
-                             32,
-                             PropModeReplace,
-                             (const unsigned char*) &window_is_shared,
-                             1);
-            
-            share_window (dpy,
-                          window,
-                          plugin);
-          }
-
-        XFree (transiency);
-        XFree (sharing);
+        share_transients_on_map (plugin, event);
       }
       return FALSE;
 
