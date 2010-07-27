@@ -273,6 +273,62 @@ send_to_bus (MutterPlugin *plugin,
 }
 
 static void
+send_buffer_to_bus (MutterPlugin *plugin,
+                    unsigned char *buffer,
+                    int length)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char length_buffer[4];
+  int i, temp;
+
+  if (length==-1)
+    length = strlen (buffer);
+
+  temp = length;
+  for (i=0; i<4; i++)
+    {
+      length_buffer[i] = temp % 256;
+      temp >>= 8;
+    }
+
+  write (priv->bus_fd, length_buffer, 4);
+  write (priv->bus_fd, buffer, length);  
+}
+
+static void
+send_metadata_to_bus (MutterPlugin *plugin,
+                      int xzibit_id,
+                      int metadata_type,
+                      char *metadata,
+                      int metadata_length)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char preamble[9];
+  int i, temp;
+
+  if (metadata_length==-1)
+    metadata_length = strlen (metadata);
+
+  temp = metadata_length + 5;
+  for (i=0; i<4; i++)
+    {
+      preamble[i] = temp % 256;
+      temp >>= 8;
+    }
+
+  preamble[4] = 3; /* set metadata */
+  preamble[5] = xzibit_id % 256;
+  preamble[6] = xzibit_id / 256;
+  preamble[7] = metadata_type % 256;
+  preamble[8] = metadata_type / 256;
+
+  write (priv->bus_fd, preamble,
+         sizeof(preamble));
+  write (priv->bus_fd, metadata,
+         metadata_length);  
+}
+
+static void
 share_window (Display *dpy,
               Window window, MutterPlugin *plugin)
 {
@@ -280,6 +336,12 @@ share_window (Display *dpy,
   GError *error = NULL;
   unsigned char message[11];
   int port;
+  Atom actual_type;
+  int actual_format;
+  unsigned long n_items, bytes_after;
+  unsigned char *property;
+  unsigned char *name_of_window = "";
+  unsigned char type_of_window[2] = { 0, 0 };
       
   g_warning ("Share window...");
   port = vnc_port (window);
@@ -301,6 +363,83 @@ share_window (Display *dpy,
               port / 256,
               -1);
 
+  /* also supply metadata */
+
+  /* FIXME: We should also consider WM_NAME */
+  /* FIXME: We should cache the atoms */
+  if (XGetWindowProperty(dpy,
+                         window,
+                         XInternAtom(dpy,
+                                     "_NET_WM_NAME",
+                                     False),
+                         0,
+                         1024,
+                         False,
+                         XInternAtom(dpy,
+                                     "UTF8_STRING",
+                                     False),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)==Success)
+    {
+      name_of_window = property;
+    }
+
+  if (XGetWindowProperty(dpy,
+                         window,
+                         XInternAtom(dpy,
+                                     "_NET_WM_WINDOW_TYPE",
+                                     False),
+                         0,
+                         1,
+                         False,
+                         XInternAtom(dpy,
+                                     "ATOM",
+                                     False),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)==Success)
+    {
+      char *type = XGetAtomName(dpy,
+                                *((int*) property));
+      int i=0;
+
+      /* FIXME: Presumably that can fail */
+
+      while (window_types[i][0])
+        {
+          if (strcmp(window_types[i][1], type)==0)
+            {
+              type_of_window[0] = window_types[i][0][0];
+              break;
+            }
+          i++;
+        }
+    }
+
+  g_print ("Name of window==[%s]; type==[%s]\n",
+             name_of_window,
+             type_of_window);
+
+  send_metadata_to_bus (plugin,
+                        port, /* == xzibit id */
+                        2, /* name of window */
+                        name_of_window,
+                        -1);
+
+  send_metadata_to_bus (plugin,
+                        port,
+                        3, /* type of window */
+                        type_of_window,
+                        1);
+
+  /* we don't supply icons yet. */
+
+  XFree (name_of_window);
 }
 
 static gboolean
