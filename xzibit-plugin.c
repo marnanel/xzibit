@@ -30,6 +30,7 @@
 #include "mutter-plugin.h"
 #include "vnc.h"
 #include <X11/extensions/XI2.h>
+#include <stdarg.h>
 
 #include <libintl.h>
 #define _(x) dgettext (GETTEXT_PACKAGE, x)
@@ -234,6 +235,44 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 }
 
 static void
+send_to_bus (MutterPlugin *plugin,
+             ...)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  va_list ap;
+  unsigned char *buffer = NULL;
+  int count=0, i, temp;
+
+  va_start (ap, plugin);
+  while (va_arg (ap, int)!=-1)
+    {
+      count++;
+    }
+  va_end (ap);
+
+  buffer = g_malloc (count+4);
+
+  va_start (ap, plugin);
+  for (i=0; i<count; i++)
+    {
+      buffer[i+4] = (unsigned char) (va_arg (ap, int));
+    }
+  va_end (ap); 
+
+  /* add in the length */
+  temp = count;
+  for (i=0; i<4; i++)
+    {
+      buffer[i] = temp % 256;
+      temp >>= 8;
+    }
+
+  write (priv->bus_fd, buffer, count+4);
+
+  g_free (buffer);
+}
+
+static void
 share_window (Display *dpy,
               Window window, MutterPlugin *plugin)
 {
@@ -255,6 +294,14 @@ share_window (Display *dpy,
 
   /* and tell our counterpart about it */
 
+  send_to_bus(plugin,
+              1, /* opcode */
+              127, 0, 0, 1, /* IP address (ignored) */
+              port % 256,
+              port / 256,
+              -1);
+
+#if 0
   message[0] = 7; /* length */
   message[1] = message[2] = message[3] = 0;
   message[4] = 1; /* opcode */
@@ -266,6 +313,7 @@ share_window (Display *dpy,
   message[10] = port / 256;
 
   write (priv->bus_fd, message, sizeof(message));
+#endif
 
 }
 
