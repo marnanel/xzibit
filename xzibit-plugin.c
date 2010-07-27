@@ -688,7 +688,7 @@ check_for_bus_reads (GIOChannel *source,
 }
 
 static void
-share_transients_on_map (MutterPlugin *plugin,
+share_transiency_on_map (MutterPlugin *plugin,
                          XEvent *event)
 {
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
@@ -830,7 +830,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     {
     case MapNotify:
       {
-        share_transients_on_map (plugin, event);
+        share_transiency_on_map (plugin, event);
       }
       return FALSE;
 
