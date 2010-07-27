@@ -301,20 +301,6 @@ share_window (Display *dpy,
               port / 256,
               -1);
 
-#if 0
-  message[0] = 7; /* length */
-  message[1] = message[2] = message[3] = 0;
-  message[4] = 1; /* opcode */
-  message[5] = 127; /* IP address (ignored) */
-  message[6] = 0;
-  message[7] = 0;
-  message[8] = 1;
-  message[9] = port % 256;
-  message[10] = port / 256;
-
-  write (priv->bus_fd, message, sizeof(message));
-#endif
-
 }
 
 static gboolean
