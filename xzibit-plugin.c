@@ -820,6 +820,63 @@ share_transiency_on_map (MutterPlugin *plugin,
   XFree (sharing);
 }
 
+static void
+check_for_pending_metadata_on_map (MutterPlugin *plugin,
+                                   XEvent *event)
+{
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  XMapEvent *map_event = (XMapEvent*) event;
+  Atom actual_type;
+  int actual_format;
+  unsigned long n_items, bytes_after;
+  unsigned char *property;
+  int xzibit_id;
+  GList *metadata;
+  Display *dpy = map_event->display;
+
+  g_print ("New window is %x\n", map_event->window);
+
+  if (XGetWindowProperty(dpy,
+                         map_event->window,
+                         XInternAtom(dpy,
+                                     "_XZIBIT_ID",
+                                     False),
+                         0,
+                         4,
+                         False,
+                         priv->cardinal_atom,
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)!=Success)
+    {
+      g_print ("Can't read its properties\n");
+      return;
+    }
+
+  if (n_items==0)
+    {
+      g_print ("It is not ours\n");
+      return;
+    }
+
+  xzibit_id = *((int*) property);
+  XFree (property);
+
+  g_print ("Its xzibit-id is %d", xzibit_id);
+
+  metadata = g_hash_table_lookup (priv->postponed_metadata,
+                                  &xzibit_id);
+
+  if (metadata)
+    {
+      g_print ("There IS metadata.\n");
+    }
+  else
+    g_print ("THere is NO metadata\n");
+}
+
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
@@ -831,6 +888,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     case MapNotify:
       {
         share_transiency_on_map (plugin, event);
+        check_for_pending_metadata_on_map (plugin, event);
       }
       return FALSE;
 
