@@ -15,12 +15,16 @@
  */
 
 int port = 7177;
+int id = 0;
 
 static const GOptionEntry options[] =
 {
 	{
 	  "port", 'p', 0, G_OPTION_ARG_INT, &port,
 	  "The port number on localhost to connect to", NULL },
+	{
+	  "id", 'i', 0, G_OPTION_ARG_INT, &id,
+	  "The Xzibit ID of the window", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -36,6 +40,23 @@ set_window_remote (GtkWidget *window)
 		   32,
 		   PropModeReplace,
 		   (const unsigned char*) &window_is_remote,
+		   1);
+}
+
+static void
+set_window_id (GtkWidget *window,
+	       guint32 id)
+{
+  if (id==0)
+    return;
+
+  XChangeProperty (gdk_x11_get_default_xdisplay (),
+		   GDK_WINDOW_XID (window->window),
+		   gdk_x11_get_xatom_by_name("_XZIBIT_ID"),
+		   gdk_x11_get_xatom_by_name("CARDINAL"),
+		   32,
+		   PropModeReplace,
+		   (const unsigned char*) &id,
 		   1);
 }
 
@@ -89,6 +110,7 @@ main (int argc, char **argv)
   gtk_widget_show_all (window);
   g_warning ("RFB client shown window.\n");
   set_window_remote (window);
+  set_window_id (window, id);
 
   gtk_main ();
 }
