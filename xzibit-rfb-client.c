@@ -62,8 +62,7 @@ set_window_id (GtkWidget *window,
 
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 {
-  gtk_window_set_title (GTK_WINDOW (window),
-			vnc_display_get_name (VNC_DISPLAY (vnc)));
+  /* nothing */
 }
 
 int
