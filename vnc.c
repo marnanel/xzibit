@@ -25,7 +25,7 @@
  * mapped to their naes in the EWMH spec.
  */
 char* window_types[][2] = {
-  { "B", "_NET_WM_WINDOW_TYPE_TOOLBAR"},
+  {"B", "_NET_WM_WINDOW_TYPE_TOOLBAR"},
   {"C", "_NET_WM_WINDOW_TYPE_COMBO"},
   {"D", "_NET_WM_WINDOW_TYPE_DIALOG"},
   {"M", "_NET_WM_WINDOW_TYPE_MENU"},
