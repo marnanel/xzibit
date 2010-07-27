@@ -24,7 +24,7 @@ import os.path
 import sys
 
 # FIXME: Commandline options for these
-verbose = 0 # Print debugging info
+verbose = 1 # Print debugging info
 traffic = 1 # Print bus traffic to stdout
 
 def dump(s):
@@ -42,6 +42,36 @@ def dump(s):
             ord(s[3]),
             ord(s[4]),
             ord(s[6])*256+ord(s[5]))
+    elif message_type==2:
+        print 'Close window (should not appear)'
+    elif message_type==3:
+        field = ''
+        field_id = 0
+        window = 0
+        value = None
+
+        window = ord(s[2])*256+ord(s[1])
+        field_id = ord(s[4])*256+ord(s[3])
+
+        if field_id==1:
+            field = 'TRANSIENCY'
+            value = '%x' % (ord(s[6])*256+ord(s[5]),)
+        elif field_id==2:
+            field = 'NAME'
+            value = '"%s"' % (''.join([x for x in s[5:]]),)
+        elif field_id==3:
+            field = 'TYPE'
+            value = s[5]
+        elif field_id==4:
+            field = 'ICON'
+            value = '(suppressed)'
+        else:
+            field = '(unknown:%d)' % (field_id,)
+            value = '%d bytes' % (len(s)-5,)
+
+        print 'Set metadata %s on %x to %s' % (field,
+                                               window,
+                                               value)
     else:
         print 'unknown message type: %d' % (message_type,)
 
