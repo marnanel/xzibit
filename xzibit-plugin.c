@@ -302,6 +302,25 @@ apply_metadata_now (MutterPlugin *plugin,
                                  PropModeReplace,
                                  (unsigned char*) &atom,
                                  1);
+
+                switch (type)
+                  {
+                  case 'R':
+                  case 'P':
+                    {
+                      XSetWindowAttributes attr;
+
+                      /* It's a menu.  Make it override-redirect. */
+                      attr.override_redirect = True;
+                      XChangeWindowAttributes (dpy,
+                                               window,
+                                               CWOverrideRedirect,
+                                               &attr);
+
+                    /* FIXME Pointer grab?? */
+                    }
+                    break;
+                  }
                 
                 /* and we're done */
                 return;
