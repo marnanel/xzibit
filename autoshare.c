@@ -30,6 +30,7 @@ GtkWidget *window, *label;
 gboolean pulsing = FALSE;
 gboolean showing_events = FALSE;
 gboolean no_share = FALSE;
+gboolean menu = FALSE;
 
 static const GOptionEntry options[] =
 {
@@ -42,6 +43,9 @@ static const GOptionEntry options[] =
 	{
 	  "no-share", 'n', 0, G_OPTION_ARG_NONE, &no_share,
 	  "Don't mark as shared after two seconds", NULL },
+        {
+          "menu", 'm', 0, G_OPTION_ARG_NONE, &menu,
+          "Pop up a menu after two seconds", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -66,6 +70,38 @@ xev (Window xid)
 
   g_free (argv[2]);
   g_free (argv);
+}
+
+static void
+menu_position (GtkMenu *menu,
+               gint *x,
+               gint *y,
+               gboolean *push_in,
+               gpointer user_data)
+{
+  gdk_window_get_position (window->window,
+                           x, y);
+  *push_in = TRUE;
+}
+
+static void
+pop_up_menu (void)
+{
+  GtkWidget *menu = gtk_menu_new ();
+  GtkWidget *item = gtk_menu_item_new_with_mnemonic ("_Hello world!");
+
+  gtk_menu_attach (GTK_MENU (menu),
+                   item,
+                   0, 1, 0, 1);
+
+  gtk_widget_show_all (menu);
+  gtk_widget_show_all (item);
+
+  gtk_menu_popup (GTK_MENU (menu),
+                  NULL, NULL,
+                  menu_position, NULL,
+                  0, gtk_get_current_event_time ());
+
 }
 
 static gboolean
@@ -96,6 +132,12 @@ embiggen (gpointer data)
 			 1);
 	
 	shared = TRUE;
+      }
+
+    if (menu)
+      {
+        pop_up_menu ();
+        menu = FALSE;
       }
   }
 
