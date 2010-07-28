@@ -33,8 +33,8 @@ def usage():
     print '      run test foo'
     print '  --list'
     print '      list tests'
-    print '  --pulse'
-    print '      pulse the source window'
+    print '  --autoshare x,y,z'
+    print '      send these comma-separated switches to autoshare'
     print '  --events'
     print '      list events on the source window'
 
@@ -46,7 +46,7 @@ def abort():
     sys.exit(2)
 
 def launch(args, stdout=None):
-    devnull = file('/dev/null')
+    devnull = None#file('/dev/null')
     p = Popen(args, stdout=stdout, stderr=devnull)
     if p.returncode > 0:
         print 'When I ran the command ',command
@@ -108,7 +108,7 @@ banner()
 
 try:
     opts, args = getopt.getopt(sys.argv[1:], "",
-                               ["test=", "pulse", "events",
+                               ["test=", "autoshare=", "events",
                                 "list",
                                 "help"])
 except getopt.GetoptError, err:
@@ -137,14 +137,20 @@ if options.has_key('--test'):
 if test in ('key', 'keybehind',
             'click', 'clickbehind'):
     options['--events'] = ''
-    if options.has_key('--pulse'):
-        del options['--pulse']
 
 # Check they're asking for a real test.
 
 if not test in tests and test!='basic':
     print 'Test %s is not known.' % (test)
     abort()
+
+autoshare_switches = []
+
+if options.has_key('--autoshare'):
+    autoshare_switches.extend(['--'+x for x in options['--autoshare'].split(',')])
+
+if options.has_key('--events'):
+    autoshare_switches.append('--events')
 
 ################################################################
 
@@ -222,10 +228,7 @@ launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
 # but mutter doesn't like it
 
 autoshare_args = ['./autoshare']
-if options.has_key('--pulse'):
-    autoshare_args.extend(['--pulse'])
-if options.has_key('--events'):
-    autoshare_args.extend(['--events'])
+autoshare_args.extend(autoshare_switches)
 events = file('/tmp/xzibit-events', 'w')
 autoshare_args.extend(['--display', ':3'])
 
