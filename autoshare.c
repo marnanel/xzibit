@@ -26,11 +26,12 @@
 #include <gdk/gdkx.h>
 
 Window xid = 0;
-GtkWidget *window, *label;
+GtkWidget *window, *label, *transient;
 gboolean pulsing = FALSE;
 gboolean showing_events = FALSE;
 gboolean no_share = FALSE;
 gboolean menu = FALSE;
+gboolean show_transient = FALSE;
 
 static const GOptionEntry options[] =
 {
@@ -46,6 +47,9 @@ static const GOptionEntry options[] =
         {
           "menu", 'm', 0, G_OPTION_ARG_NONE, &menu,
           "Pop up a menu after two seconds", NULL },
+        {
+          "transient", 't', 0, G_OPTION_ARG_NONE, &show_transient,
+          "Pop up a transient dialogue after two seconds", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -104,6 +108,25 @@ pop_up_menu (void)
 
 }
 
+static void
+pop_up_transient (void)
+{
+  GtkWidget *label;
+
+  if (transient)
+    return;
+
+  transient = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  label = gtk_label_new ("Badgers");
+  gtk_container_add (GTK_CONTAINER (transient),
+		     label);
+
+  gtk_window_set_transient_for (GTK_WINDOW (transient),
+                                GTK_WINDOW (window));
+
+  gtk_widget_show_all (transient);
+}
+
 static gboolean
 embiggen (gpointer data)
 {
@@ -138,6 +161,12 @@ embiggen (gpointer data)
       {
         pop_up_menu ();
         menu = FALSE;
+      }
+
+    if (show_transient)
+      {
+        pop_up_transient ();
+        show_transient = FALSE;
       }
   }
 
