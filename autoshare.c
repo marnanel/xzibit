@@ -26,7 +26,7 @@
 #include <gdk/gdkx.h>
 
 Window xid = 0;
-GtkWidget *window, *label, *transient;
+GtkWidget *window, *vbox, *label, *transient;
 gboolean pulsing = FALSE;
 gboolean showing_events = FALSE;
 gboolean no_share = FALSE;
@@ -43,10 +43,10 @@ static const GOptionEntry options[] =
 	  "Display all events that occur on the window", NULL },
 	{
 	  "no-share", 'n', 0, G_OPTION_ARG_NONE, &no_share,
-	  "Don't mark as shared after two seconds", NULL },
+	  "Don't mark as shared after some delay", NULL },
         {
           "menu", 'm', 0, G_OPTION_ARG_NONE, &menu,
-          "Pop up a menu after two seconds", NULL },
+          "Pop up a menu after some delay", NULL },
         {
           "transient", 't', 0, G_OPTION_ARG_NONE, &show_transient,
           "Pop up a transient dialogue after two seconds", NULL },
@@ -91,21 +91,28 @@ menu_position (GtkMenu *menu,
 static void
 pop_up_menu (void)
 {
+  GtkWidget *menubar = gtk_menu_bar_new ();
   GtkWidget *menu = gtk_menu_new ();
   GtkWidget *item = gtk_menu_item_new_with_mnemonic ("_Hello world!");
+  GtkWidget *file = gtk_menu_item_new_with_mnemonic ("_File");
 
-  gtk_menu_attach (GTK_MENU (menu),
-                   item,
-                   0, 1, 0, 1);
-
-  gtk_widget_show_all (menu);
   gtk_widget_show_all (item);
+  gtk_widget_show_all (file);
+  gtk_widget_show_all (menu);
+  gtk_widget_show_all (menubar);
 
-  gtk_menu_popup (GTK_MENU (menu),
-                  NULL, NULL,
-                  menu_position, NULL,
-                  0, gtk_get_current_event_time ());
+  gtk_menu_append (GTK_MENU (menu),
+                   item);
 
+  gtk_menu_item_set_submenu (GTK_MENU_ITEM (file),
+                             menu);
+
+  gtk_menu_bar_append (GTK_MENU_BAR (menubar),
+                       file);
+
+  gtk_box_pack_start (GTK_BOX (vbox), menubar, FALSE, FALSE, 2);
+
+  gtk_menu_item_select (GTK_MENU_ITEM (file));
 }
 
 static void
@@ -156,18 +163,6 @@ embiggen (gpointer data)
 	
 	shared = TRUE;
       }
-
-    if (menu)
-      {
-        pop_up_menu ();
-        menu = FALSE;
-      }
-
-    if (show_transient)
-      {
-        pop_up_transient ();
-        show_transient = FALSE;
-      }
   }
 
   if (pulsing)
@@ -176,6 +171,22 @@ embiggen (gpointer data)
     }
 
   return TRUE;
+}
+
+static gboolean
+do_popups (gpointer dummy)
+{
+  if (menu)
+    {
+      pop_up_menu ();
+    }
+  
+  if (show_transient)
+    {
+      pop_up_transient ();
+    }
+
+    return FALSE;
 }
 
 int
@@ -201,9 +212,13 @@ main(int argc, char **argv)
   gtk_window_set_default_size (GTK_WINDOW (window),
 			       100, 100);
 
+  vbox = gtk_vbox_new (FALSE, 0);
+
   label = gtk_label_new ("xzibit");
-  gtk_container_add (GTK_CONTAINER (window),
+  gtk_container_add (GTK_CONTAINER (vbox),
 		     label);
+  gtk_container_add (GTK_CONTAINER (window),
+		     vbox);
 
   gtk_widget_show_all (window);
 
@@ -215,6 +230,7 @@ main(int argc, char **argv)
     }
 
   g_timeout_add (1000, embiggen, NULL);
+  g_timeout_add (7000, do_popups, NULL);
 
   gtk_main ();
 
