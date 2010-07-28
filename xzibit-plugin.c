@@ -248,6 +248,7 @@ apply_metadata_now (MutterPlugin *plugin,
     case XZIBIT_METADATA_NAME:
       {
         /* FIXME: we also need to update WM_NAME */
+        /* FIXME: some weirdness about terminators */
 
         XChangeProperty (dpy,
                          window,
@@ -266,8 +267,6 @@ apply_metadata_now (MutterPlugin *plugin,
 
     case XZIBIT_METADATA_TYPE:
       {
-        g_print ("(update type here -- stub)\n");
-
         int i=0;
         char type = buffer[2];
 
@@ -287,12 +286,14 @@ apply_metadata_now (MutterPlugin *plugin,
                 if (atom==0)
                   return;
        
-                g_print ("Atom==%d", (int) atom);
+                g_print ("Setting %d (%s) on %x",
+                         (int) atom, window_types[i][1],
+                         (int) window);
          
                 XChangeProperty (dpy,
                                  window,
                                  XInternAtom(dpy,
-                                             "_NET_WM_WINDOW_TYPRE",
+                                             "_NET_WM_WINDOW_TYPE",
                                              False),
                                  XInternAtom(dpy,
                                              "ATOM",
@@ -326,6 +327,8 @@ apply_metadata (MutterPlugin *plugin,
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   int xzibit_id = buffer[1]*256 + buffer[0];
   Window *xid;
+
+  g_print("*** APPLY METADATA ***\n");
 
   xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
                              &xzibit_id);
@@ -598,7 +601,7 @@ share_window (Display *dpy,
 static gboolean
 receive_window (gpointer data)
 {
-  int* args = (int*) data;
+  guint32 * args = (int*) data;
   GError *error = NULL;
   const char **argvl = g_malloc(sizeof (char*) * 6);
   char *port_as_string = g_strdup_printf("%d", args[0]);
@@ -631,6 +634,8 @@ receive_window (gpointer data)
       meta_warning ("Attempting to launch window receiving service: %s\n", error->message);
       g_error_free (error);
     }
+
+  g_free (data);
 
   return FALSE;
 }
@@ -680,11 +685,12 @@ handle_message_from_bus (MutterPlugin *plugin,
     {
     case 1: /* OPEN */
       {
-        int data[] = {
-          /* xzibit ID is currently the same as port number */
-          (buffer[6]<<8 | buffer[5]),
-          (buffer[6]<<8 | buffer[5]),
-        };
+        guint32 *data = g_malloc(sizeof(guint32)*2);
+
+        /* xzibit ID is currently the same as port number */
+        data[0] = buffer[6]<<8 | buffer[5];
+        data[1] = data[0];
+
         g_timeout_add (3000,
                        receive_window,
                        data);
@@ -765,44 +771,22 @@ check_for_bus_reads (GIOChannel *source,
   return TRUE;
 }
 
-static void
-share_transiency_on_map (MutterPlugin *plugin,
-                         XEvent *event)
+static gboolean
+related_to_shared_window (Display *dpy,
+                          Window window,
+                          gchar *relationship)
 {
-  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  XMapEvent *map_event = (XMapEvent*) event;
-  int i;
-  Window window = map_event->window;
   Atom actual_type;
   int actual_format;
   unsigned long n_items, bytes_after;
   unsigned char *property;
-  guint32 *transiency;
-  guint32 *sharing;
-  Display *dpy = map_event->display;
+  guint32 parent, sharing;
 
-  g_print ("Transiency start\n");
-
-  if (priv->wm_transient_for_atom == 0)
-    {
-      priv->wm_transient_for_atom = XInternAtom(dpy,
-                                                "WM_TRANSIENT_FOR",
-                                                False);
-    }
-        
-  if (priv->cardinal_atom == 0)
-    {
-      priv->cardinal_atom = XInternAtom(dpy,
-                                        "CARDINAL",
-                                        False);
-    }
-
-  g_print ("Checking %x\n", window);
-
-  /* is it transient? */
   if (XGetWindowProperty(dpy,
                          window,
-                         priv->wm_transient_for_atom,
+                         XInternAtom(dpy,
+                                     relationship,
+                                     False),
                          0,
                          4,
                          False,
@@ -814,73 +798,76 @@ share_transiency_on_map (MutterPlugin *plugin,
                          &n_items,
                          &bytes_after,
                          &property)!=Success)
-    return; /* we can't tell */
-
-  if (property == NULL)
-    return; /* no, it isn't */
-
-  transiency = (guint32*) property;
-
-  g_print ("Transiency of %x = %x", window, *transiency);
-
-  /*
-    if (*transiency == gdk_x11_the_root_window (... FIXME ...)
-    break; -- yes it is, but to the root
-  */
-
-  if (*transiency == window)
-    return; /* yes it is, but to itself */
-
-  /* So if we get here, it's transient to something.
-   * Is it transient to a shared window? */
-
-  /* FIXME: Need an ensure_atoms method */
-  if (priv->xzibit_share_atom == 0)
     {
-      priv->xzibit_share_atom = XInternAtom(dpy,
-                                            "_XZIBIT_SHARE",
-                                            False);
+      g_warning ("We can't tell the %s of %x.\n",
+                 relationship, (int)window);
+      return FALSE; /* we can't tell */
+    }
+  if (property == NULL)
+    {
+      g_warning ("%x has no %s.\n", (int)window, relationship);
+      return FALSE; /* no, it isn't */
     }
 
-  /* FIXME:
-     Crazy values for WM_TRANSIENT_FOR will cause
-     BadWindow here, which will mean we crash.
-     We should not crash.
-  */
-  g_print ("Checking %x for transiency\n", *transiency);
+  parent = *((guint32*) property);
+  XFree (property);
+
+  g_warning ("%s relation of %x is %x",
+             relationship, window,
+             parent);
 
   if (XGetWindowProperty(dpy,
-                         *transiency,
-                         priv->xzibit_share_atom,
+                         parent,
+                         XInternAtom(dpy,
+                                     "_XZIBIT_SHARE",
+                                     False),
                          0,
                          4,
                          False,
-                         priv->cardinal_atom,
+                         XInternAtom(dpy,
+                                     "CARDINAL",
+                                     False),
                          &actual_type,
                          &actual_format,
                          &n_items,
                          &bytes_after,
                          &property)!=Success)
     {
-      g_warning ("can't read sharing\n");
-      XFree (transiency);
-      return; /* we can't tell */
+      g_warning ("can't read relationship %s\n", relationship);
+      return FALSE; /* we can't tell */
     }
   
   if (property == NULL)
     {
-      g_warning ("no transiency");
-      XFree (transiency);
-      XFree (property);
-      return; /* no, it isn't */
+      g_warning ("no sharing on parent, %x", (int)parent);
+      return FALSE; /* no, it isn't */
     }
 
-  sharing = (guint32*) property;
+  sharing = *(guint32*) property;
+  XFree (property);
 
-  if (*sharing==1)
+  return sharing==1;
+}
+
+static void
+share_transiency_on_map (MutterPlugin *plugin,
+                         XEvent *event)
+{
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  XMapEvent *map_event = (XMapEvent*) event;
+  int i;
+  Window window = map_event->window;
+  guint32 transiency;
+  guint32 client_leader;
+  guint32 *sharing;
+  Display *dpy = map_event->display;
+
+  g_warning ("Transiency check for %x starting\n", (int) map_event->window);
+
+  if (related_to_shared_window (dpy, window, "WM_TRANSIENT_FOR"))
     {
       /* This is what we've been looking for!
-       * The window is transient to a shared window.
+       * The window is related to a shared window.
        * It should be shared itself.
        */
       
@@ -899,9 +886,6 @@ share_transiency_on_map (MutterPlugin *plugin,
                     window,
                     plugin);
     }
-  
-  XFree (transiency);
-  XFree (sharing);
 }
 
 static void
@@ -989,6 +973,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   int i;
 
+  gdk_error_trap_push ();
+
   switch (event->type)
     {
     case MapNotify:
@@ -998,7 +984,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         share_transiency_on_map (plugin, event);
         check_for_pending_metadata_on_map (plugin, event);
       }
-      return FALSE;
+      break;
 
     case PropertyNotify:
       {
@@ -1048,8 +1034,8 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
                            new_state,
                            plugin);
       
-        return FALSE; /* we never handle events ourselves */
       }
+      break;
 
     case KeyPress:
     case KeyRelease:
@@ -1062,6 +1048,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         vnc_latestTime = button->time;
         vnc_latestSerial = button->serial;
       }
+      break;
 
     case GenericEvent:
       switch (event->xcookie.type)
@@ -1071,9 +1058,11 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         }
       break;
       
-    default:
-      return FALSE; /* we didn't handle it */
     }
+
+  gdk_error_trap_pop ();
+
+  return FALSE;
 }
 
 static const MutterPluginInfo *
