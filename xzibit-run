@@ -15,6 +15,7 @@ import getopt
 pidsfile = '/tmp/xzibit-pids'
 busfile = '/tmp/xzibit-bus'
 stderr = file('/tmp/xzibit-stderr', 'a')
+verbose = False
 test = 'basic'
 # List of the tests we support; don't include "basic"
 # since that's not really a test.
@@ -46,7 +47,10 @@ def abort():
     sys.exit(2)
 
 def launch(args, stdout=None):
-    devnull = None#file('/dev/null')
+    if verbose:
+        devnull = None
+    else:
+        devnull = file('/dev/null')
     p = Popen(args, stdout=stdout, stderr=devnull)
     if p.returncode > 0:
         print 'When I ran the command ',command
@@ -109,7 +113,7 @@ banner()
 try:
     opts, args = getopt.getopt(sys.argv[1:], "",
                                ["test=", "autoshare=", "events",
-                                "list",
+                                "list", "verbose",
                                 "help"])
 except getopt.GetoptError, err:
     print str(err)
@@ -123,6 +127,9 @@ for (opt, arg) in opts:
 if options.has_key('--help') or options=={}:
     usage()
     sys.exit(0)
+
+if options.has_key('--verbose'):
+    verbose = True
 
 if options.has_key('--list'):
     for test in sorted(tests):
