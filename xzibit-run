@@ -163,7 +163,9 @@ if options.has_key('--events'):
 
 # Make sure we're up to date.
 
-os.system("make -s")
+if os.system("make -s")!=0:
+    print 'Make failed.'
+    abort()
 
 need_update = False
 
