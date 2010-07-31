@@ -106,11 +106,11 @@ xzibit_multiplex_send (XzibitMultiplex *self,
 
     if (target_channel != self->current_channel)
       {
-        const unsigned char pair[3] =
-          { 255, target_channel % 256, target_channel / 256 };
+        const unsigned char channel_switch[3] =
+          { 0xFF, target_channel % 256, target_channel / 256 };
 
         self->target (0 /* unused */,
-                pair, 3);
+                channel_switch, 3);
 
         self->current_channel = target_channel;
       }
