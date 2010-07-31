@@ -24,6 +24,12 @@ xzibit_multiplex_new (void)
     return result;
 }
 
+void
+xzibit_multiplex_free (XzibitMultiplex *self)
+{
+    g_free (self);
+}
+
 static void
 submit (unsigned int channel,
         const unsigned char *buffer,
@@ -157,6 +163,9 @@ main (int argc, char **argv)
     xzibit_multiplex_receive (multiplex,
             source,
             G_N_ELEMENTS(source));
+
+    xzibit_multiplex_free (multiplex);
+
 }
 
 #endif
