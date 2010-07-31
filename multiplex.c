@@ -134,6 +134,20 @@ xzibit_multiplex_send (XzibitMultiplex *self,
       }
     self->target (0 /* unused */,
             buffer+cursor, size-cursor);
+
+    if (target_channel == 0)
+      {
+        /* as a special case, when writing
+           to channel 0 we switch back to
+           channel 0 at the end, because
+           a channel switch marks the message
+           as finished
+           */
+        unsigned char terminator[3] =
+          { 255, 0, 0 };
+        self->target (0,
+                &terminator[0], 3);
+      }
 }
 
 #ifdef TEST
@@ -157,8 +171,10 @@ unsigned char bytes_for_channels[][2] = {
 
 unsigned char source[] = {
     1, 0, 254, 254, 254, 255, 3,
+    255, 0, 0,
     255, 1, 0, 15, 177, 254, 255, 153,
-    254, 254, 255, 0, 0, 3
+    254, 254, 255, 0, 0, 3,
+    255, 0, 0
 };
 
 static void
