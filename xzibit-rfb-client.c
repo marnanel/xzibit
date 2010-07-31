@@ -6,7 +6,7 @@
 int remote_server = 1;
 int port = 7177;
 int id = 0;
-gboolean is_override_redirect;
+gboolean is_override_redirect = FALSE;
 
 static const GOptionEntry options[] =
 {
