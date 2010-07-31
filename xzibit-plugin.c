@@ -234,21 +234,25 @@ start (MutterPlugin *plugin)
                                      of themselves! */
 }
 
+typedef struct {
+  unsigned long length;
+  int type;
+  char *data;
+} XzibitMetadataInfo;
+
 static void
 apply_metadata_now (MutterPlugin *plugin,
                     Window window,
-                    unsigned char *buffer)
+                    XzibitMetadataInfo *metadata)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  int metadata_type = buffer[1]*256 + buffer[0];
   Display *dpy = priv->dpy;
 
-  switch (metadata_type)
+  switch (metadata->type)
     {
     case XZIBIT_METADATA_NAME:
       {
         /* FIXME: we also need to update WM_NAME */
-        /* FIXME: some weirdness about terminators */
 
         XChangeProperty (dpy,
                          window,
@@ -260,19 +264,28 @@ apply_metadata_now (MutterPlugin *plugin,
                                      False),
                          8,
                          PropModeReplace,
-                         buffer+2,
-                         strlen(buffer+2));
+                         metadata->data,
+                         metadata->length);
+
       }
       break;
 
     case XZIBIT_METADATA_TYPE:
       {
         int i=0;
-        char type = buffer[2];
+        char type;
+
+        if (metadata->length != 1)
+          {
+            meta_warning ("Type metadata must be a single byte; was %d",
+                    metadata->length);
+            return;
+          }
+
+        type = metadata->data[0];
 
         while (window_types[i][0])
           {
-            g_print ("%c %c\n", window_types[i][0][0], type);
             if (window_types[i][0][0]==type)
               {
                 Atom atom = 0;
@@ -334,7 +347,7 @@ apply_metadata_now (MutterPlugin *plugin,
     default:
       g_warning ("Request to set metadata on %x of type %d "
                  "which we don't know", (int) window,
-                 metadata_type);
+                 metadata->type);
     }
 }
 
@@ -344,37 +357,54 @@ apply_metadata (MutterPlugin *plugin,
                 int size)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  int xzibit_id = buffer[1]*256 + buffer[0];
+  int xzibit_id = 0, metadata_type = 0;
   Window *xid;
-
-  g_print("*** APPLY METADATA ***\n");
 
   xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
                              &xzibit_id);
 
+  if (size<4)
+    {
+      g_warning ("Trying to set metadata but buffer ran short");
+      return;
+    }
+
+  xzibit_id = buffer[1]*256 + buffer[0];
+  metadata_type = buffer[3]*256 + buffer[2];
+
   if (xid)
     {
+      XzibitMetadataInfo metadata = {
+        /* Add four bytes to bypass headers */
+        size-4,
+        metadata_type,
+        buffer+4
+      };
+
       apply_metadata_now (plugin,
                           *xid,
-                          buffer+2);
+                          &metadata);
     }
   else
     {
       Window *new_key = g_malloc(sizeof(Window));
       GList *list = g_hash_table_lookup (priv->postponed_metadata,
                                          &xzibit_id);
-      char *new_buffer = g_memdup (buffer+2,
-                                   size-2);
+      /* add four to avoid the window ID and type */
+      char *new_buffer = g_memdup (buffer+4,
+                                   size-4);
+      XzibitMetadataInfo *metadata = g_malloc (sizeof (XzibitMetadataInfo));
+
+      metadata->length = size-4;
+      metadata->data = new_buffer;
+      metadata->type = metadata_type;
       
       *new_key = xzibit_id;
-      list = g_list_prepend (list, new_buffer);
+      list = g_list_prepend (list, metadata);
 
       g_hash_table_insert (priv->postponed_metadata,
                            new_key,
                            list);
-
-      g_print ("We remember a property for %x\n",
-               (int) xzibit_id);
     }
 }
 
@@ -767,9 +797,7 @@ check_for_bus_reads (GIOChannel *source,
           priv->bus_reading_size = 0;
           priv->bus_count = -1;
 
-          priv->bus_buffer = g_malloc (priv->bus_size+1);
-          /* make sure it's null-terminated */
-          priv->bus_buffer[priv->bus_size] = 0;
+          priv->bus_buffer = g_malloc (priv->bus_size);
         }
     } else {
       priv->bus_buffer[priv->bus_count] = buffer[i];
