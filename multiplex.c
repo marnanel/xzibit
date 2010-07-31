@@ -110,9 +110,41 @@ unsigned char bytes_for_channels[][2] = {
 
 unsigned char source[] = {
     1, 0, 254, 254, 254, 255, 3,
-    255, 1, 0, 15, 177, 153,
+    255, 1, 0, 15, 177, 254, 255, 153,
     254, 254, 255, 0, 0, 3
 };
+
+static void
+check_receive (unsigned int channel,
+        const unsigned char *buffer,
+        unsigned int size)
+{
+   static int cursor = 0;
+   int i;
+
+   for (i=0; i<size; i++)
+     {
+       if (bytes_for_channels[cursor][0]==channel &&
+               bytes_for_channels[cursor][1]==buffer[i])
+         {
+           g_print ("PASS at offset %d: "
+                   "wanted (%d, %d) and got it\n",
+                   cursor,
+                   channel, buffer[i]);
+         }
+       else
+         {
+           g_print ("FAIL at offset %d\a: "
+                   "wanted (%d,%d), got (%d,%d)\n",
+                   cursor,
+                   channel, buffer[i],
+                   bytes_for_channels[cursor][0],
+                   bytes_for_channels[cursor][1]);
+         }
+
+       cursor++;
+     }
+}
 
 int
 main (int argc, char **argv)
@@ -120,6 +152,8 @@ main (int argc, char **argv)
     XzibitMultiplex *multiplex = NULL;
 
     multiplex = xzibit_multiplex_new ();
+    multiplex->target = check_receive;
+
     xzibit_multiplex_receive (multiplex,
             source,
             G_N_ELEMENTS(source));
