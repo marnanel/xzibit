@@ -179,7 +179,7 @@ xzibit_multiplex_send (XzibitMultiplex *self,
       }
 }
 
-gboolean
+unsigned int
 xzibit_connect_server (unsigned int port)
 {
     return FALSE;
@@ -191,18 +191,20 @@ xzibit_connect_connector (unsigned int port)
     /* nothing */
 }
 
-void
+unsigned int
 xzibit_connect (int port)
 {
     if (g_getenv ("XZIBIT_TEST")) {
-        if (!xzibit_connect_server (TEST_PORT))
+        if (xzibit_connect_server (TEST_PORT)==0)
           {
             xzibit_connect_connector (TEST_PORT);
           }
+        return 0;
     } else if (port==0) {
-        xzibit_connect_server (0);
+        return xzibit_connect_server (0);
     } else {
         xzibit_connect_connector (port);
+        return 0;
     }
 }
 
