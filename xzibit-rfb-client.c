@@ -3,17 +3,7 @@
 #include <vncdisplay.h>
 #include <X11/X.h>
 
-/*
- * things this should be able to do eventually:
- *
- * - display VNC!
- * - resize
- * - mark the window with _XZIBIT_SHARE==2
- * - display with no borders
- * - make the window a child of a given other window
- * - make the window transient to a given other window
- */
-
+int remote_server = 1;
 int port = 7177;
 int id = 0;
 
@@ -25,6 +15,9 @@ static const GOptionEntry options[] =
 	{
 	  "id", 'i', 0, G_OPTION_ARG_INT, &id,
 	  "The Xzibit ID of the window", NULL },
+	{
+	  "remote-server", 'r', 0, G_OPTION_ARG_INT, &remote_server,
+	  "The Xzibit code for the remote server", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -45,8 +38,12 @@ set_window_remote (GtkWidget *window)
 
 static void
 set_window_id (GtkWidget *window,
+	       guint32 remote_server,
 	       guint32 id)
 {
+  guint32 ids[2] = { remote_server,
+		     id };
+
   if (id==0)
     return;
 
@@ -56,8 +53,8 @@ set_window_id (GtkWidget *window,
 		   gdk_x11_get_xatom_by_name("CARDINAL"),
 		   32,
 		   PropModeReplace,
-		   (const unsigned char*) &id,
-		   1);
+		   (const unsigned char*) &ids,
+		   2);
 }
 
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
@@ -109,7 +106,7 @@ main (int argc, char **argv)
   gtk_widget_show_all (window);
   g_warning ("RFB client shown window.\n");
   set_window_remote (window);
-  set_window_id (window, id);
+  set_window_id (window, remote_server, id);
 
   gtk_main ();
 }

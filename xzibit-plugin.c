@@ -939,12 +939,16 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
       return;
     }
 
-  if (n_items==0)
+  if (n_items!=2)
     {
+      if (n_items!=0)
+        XFree (property);
+
       return;
     }
 
-  xzibit_id = *((int*) property);
+  /* ignore remote ID for now */
+  xzibit_id = ((int*) property)[1];
   XFree (property);
 
   metadata = g_hash_table_lookup (priv->postponed_metadata,
