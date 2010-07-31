@@ -6,6 +6,7 @@
 int remote_server = 1;
 int port = 7177;
 int id = 0;
+gboolean is_override_redirect;
 
 static const GOptionEntry options[] =
 {
@@ -18,6 +19,8 @@ static const GOptionEntry options[] =
 	{
 	  "remote-server", 'r', 0, G_OPTION_ARG_INT, &remote_server,
 	  "The Xzibit code for the remote server", NULL },
+	{"override-redirect", 'o', 0, G_OPTION_ARG_NONE, &is_override_redirect,
+	"Make the client window override-redirect", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -104,6 +107,26 @@ main (int argc, char **argv)
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
   gtk_widget_show_all (window);
+
+  if (is_override_redirect)
+    {
+      /* We have a window ID but it won't have been
+       * mapped yet.  Now is the ideal time to go
+       * override-redirect.
+       */
+      gdk_window_set_override_redirect (GDK_WINDOW (window->window),
+					TRUE);
+      gdk_window_show (GDK_WINDOW (window->window));
+      /* otherwise it won't map */
+      
+      /* and now we have another problem: gtk-vnc won't draw
+       * on this window
+       */
+
+       }
+  gtk_widget_show_all (window);
+
+
   g_warning ("RFB client shown window.\n");
   set_window_remote (window);
   set_window_id (window, remote_server, id);
