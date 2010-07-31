@@ -179,10 +179,23 @@ xzibit_multiplex_send (XzibitMultiplex *self,
       }
 }
 
+/***********************************************/
+
+/**
+ * This is a symmetric protocol, so there aren't
+ * really any clients and servers, but this method
+ * connects you as a server from the TCP point of
+ * view.
+ *
+ * \param port  The port number to listen on, or
+ *              0 if you don't care.
+ * \return  0 if we couldn't listen on that port;
+ *          the port number otherwise.
+ */
 unsigned int
 xzibit_connect_server (unsigned int port)
 {
-    return FALSE;
+    return 0;
 }
 
 void
@@ -207,6 +220,8 @@ xzibit_connect (int port)
         return 0;
     }
 }
+
+/***********************************************/
 
 #ifdef TEST
 
