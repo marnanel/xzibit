@@ -2,7 +2,15 @@
 
 typedef struct {
     int current_channel;
+    void (*target) (unsigned int,
+            const unsigned char*,
+            unsigned int);
 } XzibitMultiplex;
+
+static void
+submit (unsigned int channel,
+        const unsigned char *buffer,
+        unsigned int size);
 
 XzibitMultiplex*
 xzibit_multiplex_new (void)
@@ -11,6 +19,7 @@ xzibit_multiplex_new (void)
         g_malloc (sizeof (XzibitMultiplex));
 
     result->current_channel = 0;
+    result->target = submit;
 
     return result;
 }
@@ -44,14 +53,14 @@ xzibit_multiplex_receive (XzibitMultiplex *self,
           {
             /* a control code */
 
-            submit (self->current_channel,
+            self->target (self->current_channel,
                     start,
                     i-startpos);
 
             switch (buffer[i])
               {
                 case 0xFE:
-                    submit (self->current_channel,
+                    self->target (self->current_channel,
                             buffer+i+1,
                             1);
                     i+=2;
@@ -75,7 +84,7 @@ xzibit_multiplex_receive (XzibitMultiplex *self,
           }
       }
 
-    submit(self->current_channel,
+    self->target (self->current_channel,
         start,
         size-startpos);
 }

@@ -124,15 +124,29 @@ main (int argc, char **argv)
        * This is a specific gtk-vnc issue: tests show that
        * gtk itself has no problem drawing on an override-redirect
        * window.
+       * It happens because the image is drawn on the expose
+       * event, and GTK never calls the expose event handler
+       * on override-redirect windows.
+       * (at least, on classes subclassing GtkWidget; if you
+       * do it with a signal it works fine.  Need to investigate
+       * this further.)
        */
 
        }
   gtk_widget_show_all (window);
 
-
   g_warning ("RFB client shown window.\n");
   set_window_remote (window);
   set_window_id (window, remote_server, id);
+
+  if (is_override_redirect)
+    {
+      /* all right, it's been override-redirect
+       * for quite long enough.
+       */
+      gdk_window_set_override_redirect (GDK_WINDOW (window->window),
+					FALSE);
+     }
 
   gtk_main ();
 }
