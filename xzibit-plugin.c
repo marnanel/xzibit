@@ -992,19 +992,14 @@ check_for_pending_metadata_on_map (MutterPlugin *plugin,
           apply_metadata_now (plugin,
                               map_event->window,
                               cursor->data);
-          /*
-            FIXME:
           g_free (cursor->data);
-          */
 
           cursor = cursor->next;
         }
      
-      /*
-        FIXME:
       g_list_free (cursor);
-      And remove it from the hash
-      */
+      g_hash_table_remove (priv->postponed_metadata,
+             &xzibit_id); 
     }
 }
 
