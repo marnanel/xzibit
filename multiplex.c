@@ -95,6 +95,47 @@ xzibit_multiplex_receive (XzibitMultiplex *self,
         size-startpos);
 }
 
+void
+xzibit_multiplex_send (XzibitMultiplex *self,
+        unsigned int target_channel,
+        const unsigned char *buffer,
+        unsigned int size)
+{
+    int i;
+    unsigned int cursor;
+
+    if (target_channel != self->current_channel)
+      {
+        const unsigned char pair[3] =
+          { 255, target_channel % 256, target_channel / 256 };
+
+        self->target (0 /* unused */,
+                pair, 3);
+
+        self->current_channel = target_channel;
+      }
+
+    cursor = 0;
+    for (i=0; i<size; i++)
+      {
+        if ((buffer[i] & 0xFE)==0xFE)
+          {
+            unsigned char quoted = 0xFE;
+
+            /* a control code; quote it */
+            self->target (0 /* unused */,
+                    buffer+cursor, i-cursor);
+
+            self->target (0,
+                    &quoted, 1);
+
+            cursor = i;
+          }
+      }
+    self->target (0 /* unused */,
+            buffer+cursor, size-cursor);
+}
+
 #ifdef TEST
 
 /* This is a list of (channel, data) pairs. */
@@ -152,10 +193,39 @@ check_receive (unsigned int channel,
      }
 }
 
+static void
+check_send (unsigned int channel,
+        const unsigned char *buffer,
+        unsigned int size)
+{
+  static int cursor = 0;
+  int i;
+
+  for (i=0; i<size; i++)
+    {
+      if (source[cursor]==buffer[i])
+        {
+          g_print ("PASS: wanted %d and got it\n", buffer[i]);
+        }
+      else
+        {
+          g_print ("FAIL\a: wanted %d but got %d\n",
+                  source[cursor],
+                  buffer[i]);
+        }
+      cursor++;
+    }
+}
+    
 int
 main (int argc, char **argv)
 {
+    char buffer[256];
     XzibitMultiplex *multiplex = NULL;
+    int i, cursor;
+    int current_channel = 0;
+
+    /****************************/
 
     multiplex = xzibit_multiplex_new ();
     multiplex->target = check_receive;
@@ -164,6 +234,41 @@ main (int argc, char **argv)
             source,
             G_N_ELEMENTS(source));
 
+    xzibit_multiplex_free (multiplex);
+
+    /****************************/
+
+    multiplex = xzibit_multiplex_new ();
+    multiplex->target = check_send;
+
+    /* for this, we have to do some
+       concatenation.
+       */
+    cursor = 0;
+    for (i=0; i<G_N_ELEMENTS (bytes_for_channels); i++)
+      {
+        if (bytes_for_channels[i][0]!=current_channel)
+          {
+            xzibit_multiplex_send (multiplex,
+                    current_channel,
+                    buffer,
+                    cursor);
+            current_channel = bytes_for_channels[i][0];
+            cursor = 0;
+          }
+
+        buffer[cursor++] = bytes_for_channels[i][1];
+      }
+    xzibit_multiplex_send (multiplex,
+            current_channel,
+            buffer,
+            cursor);
+
+    /*
+    xzibit_multiplex_send (multiplex,
+            bytes_for_channels,
+            G_N_ELEMENTS(source));
+*/
     xzibit_multiplex_free (multiplex);
 
 }
