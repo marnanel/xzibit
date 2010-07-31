@@ -166,7 +166,7 @@ unsigned char bytes_for_channels[][2] = {
       { 1, 254 },
       { 0, 3 }};
 
-/* This is a sequence of characters which shoul
+/* This is a sequence of characters which should
    generate the list above. */
 
 unsigned char source[] = {
