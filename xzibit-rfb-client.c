@@ -121,6 +121,9 @@ main (int argc, char **argv)
       
       /* and now we have another problem: gtk-vnc won't draw
        * on this window
+       * This is a specific gtk-vnc issue: tests show that
+       * gtk itself has no problem drawing on an override-redirect
+       * window.
        */
 
        }
