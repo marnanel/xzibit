@@ -1,5 +1,34 @@
 #include <glib/glist.h>
 
+/*
+This file has a test routine; you can enable it
+by defining TEST.
+
+There are three cases:
+
+1) XZIBIT_TEST environment variable not defined, port==0:
+   Sending a window across Tubes.
+   In this case we listen on an arbitrary socket
+   and send the socket ID over the tube.
+
+2) XZIBIT_TEST not defined, port!=0:
+   Receiving a window across Tubes.
+   In this case we connect to a given socket
+   on localhost which is supplied as a parameter.
+
+3) XZIBIT_TEST defined.
+   In this case there will be two processes,
+   one listening on the well-known port 7177 and
+   one connecting to it.  Which one we are depends
+   on whether we got there first.  If we can't
+   create the socket because it's busy, we were
+   the second, so we connect to it.
+   The port parameter is ignored.
+
+   */
+
+#define TEST_PORT 7177
+
 typedef struct {
     int current_channel;
     void (*target) (unsigned int,
@@ -148,6 +177,33 @@ xzibit_multiplex_send (XzibitMultiplex *self,
         self->target (0,
                 &terminator[0], 3);
       }
+}
+
+gboolean
+xzibit_connect_server (unsigned int port)
+{
+    return FALSE;
+}
+
+void
+xzibit_connect_connector (unsigned int port)
+{
+    /* nothing */
+}
+
+void
+xzibit_connect (int port)
+{
+    if (g_getenv ("XZIBIT_TEST")) {
+        if (!xzibit_connect_server (TEST_PORT))
+          {
+            xzibit_connect_connector (TEST_PORT);
+          }
+    } else if (port==0) {
+        xzibit_connect_server (0);
+    } else {
+        xzibit_connect_connector (port);
+    }
 }
 
 #ifdef TEST
