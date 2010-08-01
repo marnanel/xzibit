@@ -1,4 +1,5 @@
 #include <glib/glist.h>
+#include <sys/socket.h>
 
 /*
 This file has a test routine; you can enable it
@@ -353,12 +354,7 @@ main (int argc, char **argv)
             buffer,
             cursor);
 
-    /*
-    xzibit_multiplex_send (multiplex,
-            bytes_for_channels,
-            G_N_ELEMENTS(source));
-*/
-    xzibit_multiplex_free (multiplex);
+   xzibit_multiplex_free (multiplex);
 
 }
 
