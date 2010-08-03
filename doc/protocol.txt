@@ -1,0 +1,116 @@
+
+     THE XZIBIT PROTOCOL
+
+= BACKGROUND =
+
+The Xzibit protocol is unidirectional; the receiver sends no acknowledgement
+or response.  It is expected that the protocol's streams will be paired,
+one in each direction, as in TCP.
+
+Every window shared across a connection has an "Xzibit ID", a unique number
+which fits in a non-zero unsigned sixteen-bit word.  This may be the same
+as the X ID of the realised window on one end, but need not be.
+
+Where an endpoint may communicate with multiple other endpoints, it
+may need to identify a window with a combination of its Xzibit ID
+and an identifier for the remote endpoint.
+
+The Xzibit protocol listens on port 1770 plus the number of the X display
+it is using.  If it is accepting connections over Tubes, it should
+probably deny connections from anywhere but localhost.
+
+= THE PROTOCOL =
+
+The Xzibit protocol multiplexes one or more channels.  Each channel is
+identified by an unsigned sixteen-bit word.  The channels are of
+two kinds:
+
+  * a single control channel, identified as zero, which is always open.
+  This uses a custom protocol described below.
+
+  * zero or more RFB channels, identified by the Xzibit IDs of the
+  windows they represent.  These use the RFB protocol, as used by VNC.
+
+At any time, exactly one of these channels is current.  When an Xzibit
+connection is opened, channel zero is current and there are no other
+channels.
+
+An Xzibit connection is a series of bytes, most of which represent themselves.
+These bytes should be transmitted to the relevant handler for the current
+channel.  There are only two byte values which do not represent themselves:
+
+  * 0xFE, "QUOTE".  The byte following QUOTE is sent to the handler for the
+  current channel, even if that byte is 0xFE or 0xFF.
+
+  * 0xFF, "SWITCH".  The two bytes following SWITCH form a little-endian
+  unsigned word.  Immediately after these two bytes, the current channel
+  changes to be the one named by this word.  The sole exception is when
+  there is no channel with that number, which is an error.  It may be
+  dealt with by ignoring the instruction.
+
+If the bytes 0xFE and 0xFF appear in the parameters to QUOTE or SWITCH,
+they must not be further quoted.
+
+SWITCH has the side-effect of sending an out-of-band "break" signal to
+the handler for the current channel.  For RFB channels, this has no effect.  For the
+control channel, it signifies the end of a message.  Since an empty
+message to the control channel is a no-op, it is always safe to switch
+from channel zero to channel zero at the end of a message, in order to
+force delivery.
+
+= THE CONTROL CHANNEL =
+
+A message on the control channel begins with a single-byte opcode, optionally
+continues with a series of bytes which are interpreted according to that
+opcode, and ends with a break signal, as described in the previous section.
+In an environment where there are no out-of-band break signals, messages
+should begin with a word giving their length.  This never happens in practice.
+
+All unrecognised or malformed messages on the control channel should be ignored.
+
+The defined opcodes are:
+
+ 0x01 OPEN, followed by two bytes giving the ID of the channel to open.
+            This channel may henceforth be switched to.
+ 0x02 CLOSE, followed by two bytes giving the ID of the channel to close.
+            This channel may no longer be switched to.
+ 0x03 SET, followed by two bytes defining which metadata to set; followed
+            by two bytes giving Xzibit ID of the window to set, which may
+            not be zero; possibly followed by data giving the new value of
+            that metadata.  See the metadata section, below.
+ 0x04 WALL, followed by two bytes, which form a sixteen-bit error code,
+            being 0 for success and nonzero for an error; followed by
+            UTF-8-encoded text which should be displayed to
+            the remote user.  The values of the error code are ill-defined
+            at present.
+
+= METADATA =
+
+The defined metadata types, and the interpretation of the value data, are
+as follows.  "w" is the Xzibit ID of the window whose metadata is changing.
+
+ 0x0001 TRANSIENCY.  Followed by three two-byte words, "p", "x", "y".
+   If p==0 or p==w, w becomes intransient.
+   Otherwise, w becomes transient to p; in this case, "w" is moved to
+   the coordinates of "p" translated southeast by "x","y".
+
+ 0x0002 NAME.  Followed by the new title of the window, UTF-8 encoded.
+
+ 0x0003 TYPE.  Followed by one byte, the new type of the window:
+
+ * B = _NET_WM_WINDOW_TYPE_TOOLBAR
+ * C = _NET_WM_WINDOW_TYPE_COMBO
+ * D = _NET_WM_WINDOW_TYPE_DIALOG
+ * M = _NET_WM_WINDOW_TYPE_MENU
+ * N = _NET_WM_WINDOW_TYPE_NOTIFICATION
+ * P = _NET_WM_WINDOW_TYPE_POPUP_MENU
+ * R = _NET_WM_WINDOW_TYPE_DROPDOWN_MENU
+ * S = _NET_WM_WINDOW_TYPE_SPLASH
+ * T = _NET_WM_WINDOW_TYPE_TOOLTIP
+ * U = _NET_WM_WINDOW_TYPE_UTILITY
+ * X = _NET_WM_WINDOW_TYPE_NORMAL
+ * _NET_WM_WINDOW_TYPE_DESKTOP does not get shared, so has no code
+ * _NET_WM_WINDOW_TYPE_DOCK does not get shared, so has no code
+ * _NET_WM_WINDOW_TYPE_DND is not shared because of being far too complicated for a first draft 
+
+ 0x0004 ICON.  Followed by the icon for the window, in PNG format.
