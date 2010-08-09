@@ -21,6 +21,14 @@ probably deny connections from anywhere but localhost.
 
 = THE PROTOCOL =
 
+Communications over the Xzibit protocol begin with a header as follows:
+
+   Xz 001.000\r\n
+
+or in ASCII hex
+
+   58 7a 20 30 30 31 2e 30 30 30 0d 0a
+
 The Xzibit protocol multiplexes one or more channels.  Each channel is
 identified by an unsigned sixteen-bit word.  The channels are of
 two kinds:
@@ -31,32 +39,17 @@ two kinds:
   * zero or more RFB channels, identified by the Xzibit IDs of the
   windows they represent.  These use the RFB protocol, as used by VNC.
 
-At any time, exactly one of these channels is current.  When an Xzibit
-connection is opened, channel zero is current and there are no other
-channels.
+The protocol is divided into blocks.  After the header is sent, the
+channel is ready to send its first block.  A block consists of a
+four-byte header:
 
-An Xzibit connection is a series of bytes, most of which represent themselves.
-These bytes should be transmitted to the relevant handler for the current
-channel.  There are only two byte values which do not represent themselves:
+    <channel> <length>
 
-  * 0xFE, "QUOTE".  The byte following QUOTE is sent to the handler for the
-  current channel, even if that byte is 0xFE or 0xFF.
-
-  * 0xFF, "SWITCH".  The two bytes following SWITCH form a little-endian
-  unsigned word.  Immediately after these two bytes, the current channel
-  changes to be the one named by this word.  The sole exception is when
-  there is no channel with that number, which is an error.  It may be
-  dealt with by ignoring the instruction.
-
-If the bytes 0xFE and 0xFF appear in the parameters to QUOTE or SWITCH,
-they must not be further quoted.
-
-SWITCH has the side-effect of sending an out-of-band "break" signal to
-the handler for the current channel.  For RFB channels, this has no effect.  For the
-control channel, it signifies the end of a message.  Since an empty
-message to the control channel is a no-op, it is always safe to switch
-from channel zero to channel zero at the end of a message, in order to
-force delivery.
+where <channel> is a sixteen-bit little-endian word giving the channel
+ID, which must be either zero or the Xzibit ID of an open window,
+and <length> is a sixteen-bit little-endian word giving a length in
+bytes.  This is followed by <length> bytes, which are sent to channel
+<channel>.  After this, we are again outside any block.
 
 = THE CONTROL CHANNEL =
 
