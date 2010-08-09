@@ -102,6 +102,9 @@ main (int argc, char **argv)
   vnc_display_open_host (VNC_DISPLAY (vnc),
 			 "127.0.0.1",
 			 port_as_string);
+  /* FIXME: instead, use
+     vnc_display_open_fd(VNC_DISPLAY (vnc), fd);
+     */
   g_free (port_as_string);
 
   gtk_container_add (GTK_CONTAINER (window), vnc);
