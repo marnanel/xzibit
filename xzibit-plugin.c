@@ -189,7 +189,8 @@ start (MutterPlugin *plugin)
   priv->bus_reading_size = 1;
   priv->bus_size = 0;
 
-  priv->bus_fd = socket (AF_UNIX, SOCK_STREAM, 0);
+  priv->bus_fd = open ("/tmp/xzibit-fifo",
+                       O_RDWR);
 
   if (priv->bus_fd < 0)
     {
@@ -197,24 +198,21 @@ start (MutterPlugin *plugin)
     }
   else
     {
-      struct sockaddr_un addr;
-      char *message = "\001\000\000\000\177";
-      int bufsize=4096;
       GIOChannel *channel;
+      char header[] = "Xz 000.001\r\n";
 
-      addr.sun_family = AF_UNIX;
-      strcpy (addr.sun_path, "/tmp/xzibit-bus");
-      connect (priv->bus_fd, (struct sockaddr*) &addr,
-               strlen(addr.sun_path) + sizeof (addr.sun_family));
+      write (priv->bus_fd, header,
+             sizeof(header)-1 /* no trailing null */);
+      fsync (priv->bus_fd);
 
-      /* dummy message for testing flushing out the bus */
-      /* write (priv->bus_fd, message, 5); */
-
+#if 0
+      /* not at present */
       channel = g_io_channel_unix_new (priv->bus_fd);
       g_io_add_watch (channel,
                       G_IO_IN,
                       check_for_bus_reads,
                       plugin);
+#endif
     }
 
   priv->remote_xzibit_id_to_xid =
@@ -441,14 +439,15 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 
 static void
 send_to_bus (MutterPlugin *plugin,
+             int channel,
              ...)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   va_list ap;
   unsigned char *buffer = NULL;
-  int count=0, i, temp;
+  int count=0, i;
 
-  va_start (ap, plugin);
+  va_start (ap, channel);
   while (va_arg (ap, int)!=-1)
     {
       count++;
@@ -457,47 +456,50 @@ send_to_bus (MutterPlugin *plugin,
 
   buffer = g_malloc (count+4);
 
-  va_start (ap, plugin);
+  va_start (ap, channel);
+  /* FIXME: i=4; ... would be more efficient */
   for (i=0; i<count; i++)
     {
       buffer[i+4] = (unsigned char) (va_arg (ap, int));
     }
   va_end (ap); 
 
-  /* add in the length */
-  temp = count;
-  for (i=0; i<4; i++)
-    {
-      buffer[i] = temp % 256;
-      temp >>= 8;
-    }
+  /* add in the header */
+  buffer[0] = channel % 256;
+  buffer[1] = channel / 256;
+  buffer[2] = count % 256;
+  buffer[3] = count / 256;
+
+  g_warning ("Sending buffer of length %d\n", count);
 
   write (priv->bus_fd, buffer, count+4);
+  fsync (priv->bus_fd);
 
   g_free (buffer);
 }
 
 static void
 send_buffer_to_bus (MutterPlugin *plugin,
+                    int channel,
                     unsigned char *buffer,
                     int length)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  char length_buffer[4];
-  int i, temp;
+  char header_buffer[4];
 
   if (length==-1)
     length = strlen (buffer);
 
-  temp = length;
-  for (i=0; i<4; i++)
-    {
-      length_buffer[i] = temp % 256;
-      temp >>= 8;
-    }
+  g_warning ("Sending buffer of length %d\n", length);
 
-  write (priv->bus_fd, length_buffer, 4);
+  header_buffer[0] = channel % 256;
+  header_buffer[1] = channel / 256;
+  header_buffer[2] = length % 256;
+  header_buffer[3] = length / 256;
+
+  write (priv->bus_fd, header_buffer, 4);
   write (priv->bus_fd, buffer, length);  
+  fsync (priv->bus_fd);
 }
 
 static void
@@ -509,18 +511,16 @@ send_metadata_to_bus (MutterPlugin *plugin,
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   char preamble[9];
-  int i, temp;
 
   if (metadata_length==-1)
     metadata_length = strlen (metadata);
 
-  temp = metadata_length + 5;
-  for (i=0; i<4; i++)
-    {
-      preamble[i] = temp % 256;
-      temp >>= 8;
-    }
+  g_warning ("Sending metadata of length %d\n", metadata_length+5);
 
+  preamble[0] = 0; /* channel 0, always */
+  preamble[1] = 0;
+  preamble[2] = (metadata_length+5) % 256;
+  preamble[3] = (metadata_length+5) / 256;
   preamble[4] = 3; /* set metadata */
   preamble[5] = xzibit_id % 256;
   preamble[6] = xzibit_id / 256;
@@ -531,6 +531,7 @@ send_metadata_to_bus (MutterPlugin *plugin,
          sizeof(preamble));
   write (priv->bus_fd, metadata,
          metadata_length);  
+  fsync (priv->bus_fd);
 }
 
 static void
@@ -562,6 +563,7 @@ share_window (Display *dpy,
   /* and tell our counterpart about it */
 
   send_to_bus(plugin,
+              0, /* control channel */
               1, /* opcode */
               127, 0, 0, 1, /* IP address (ignored) */
               port % 256,
