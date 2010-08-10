@@ -41,9 +41,7 @@ char* window_types[][2] = {
 
 
 typedef struct _VncPrivate {
-  /* FIXME: This is also rfb_screen->port;
-     don't store it in both places */
-  int port;
+  int fd;
   int width, height;
   GdkWindow *window;
   GdkPixbuf *screenshot;
@@ -352,6 +350,7 @@ vnc_start (Window id) {
   int *key;
   Window root;
   int x, y, width, height, border_width, depth;
+  int sockets[2];
 
   ensure_servers ();
 
@@ -374,8 +373,10 @@ vnc_start (Window id) {
   key = g_malloc (sizeof(int));
   *key = id;
 
+  socketpair (AF_LOCAL, SOCK_STREAM, 0, sockets);
+
   private = g_malloc (sizeof(VncPrivate));
-  private->port = (random() % 60000) + 1024;
+  private->fd = sockets[0];
   private->width = width;
   private->height = height;
   private->window = gdk_window_foreign_new (id);
@@ -394,7 +395,8 @@ vnc_start (Window id) {
 
   private->rfb_screen->desktopName = "Chicken Man"; /* FIXME */
   private->rfb_screen->autoPort = FALSE;
-  private->rfb_screen->port = private->port;
+  private->rfb_screen->port = 0;
+  private->rfb_screen->fdFromParent = sockets[1];
   private->rfb_screen->frameBuffer = NULL;
 
   rfbInitServer (private->rfb_screen);
@@ -402,8 +404,6 @@ vnc_start (Window id) {
   private->rfb_screen->screenData = private;
   private->rfb_screen->ptrAddEvent = handle_mouse_event;
   private->rfb_screen->kbdAddEvent = handle_keyboard_event;
-
-  g_warning ("(on port %d)", private->port);
 
   g_hash_table_insert (servers,
 		       key,
@@ -415,8 +415,8 @@ vnc_start (Window id) {
 
 }
 
-unsigned int
-vnc_port (Window id)
+int
+vnc_fd (Window id)
 {
   VncPrivate *private = NULL;
 
@@ -427,7 +427,7 @@ vnc_port (Window id)
 				 &id);
   
   if (private)
-    return private->port;
+    return private->fd;
   else
     return 0;
 }

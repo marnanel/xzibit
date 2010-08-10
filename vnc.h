@@ -15,11 +15,11 @@ extern int vnc_latestSerial;
 void vnc_start (Window id);
 
 /**
- * Returns the port number which the server for the
+ * Returns the file descriptor which the server for the
  * given X ID is listening on.  If there is no server
  * for the given X ID, returns 0.
  */
-unsigned int vnc_port (Window id);
+int vnc_fd (Window id);
 
 /**
  * Supplies a pixmap to the VNC server for the
