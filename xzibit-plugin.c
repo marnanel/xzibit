@@ -60,6 +60,8 @@ typedef struct _MutterXzibitPlugin        MutterXzibitPlugin;
 typedef struct _MutterXzibitPluginClass   MutterXzibitPluginClass;
 typedef struct _MutterXzibitPluginPrivate MutterXzibitPluginPrivate;
 
+int highest_channel = 0;
+
 struct _MutterXzibitPlugin
 {
   MutterPlugin parent;
@@ -490,7 +492,7 @@ send_buffer_to_bus (MutterPlugin *plugin,
   if (length==-1)
     length = strlen (buffer);
 
-  g_warning ("Sending buffer of length %d\n", length);
+  g_warning ("Sending buffer of length %d to %x\n", length, channel);
 
   header_buffer[0] = channel % 256;
   header_buffer[1] = channel / 256;
@@ -534,6 +536,42 @@ send_metadata_to_bus (MutterPlugin *plugin,
   fsync (priv->bus_fd);
 }
 
+typedef struct {
+  MutterPlugin *plugin;
+  int channel;
+} ForwardRFBAcrossTubesData;
+
+static gboolean
+forward_rfb_across_tubes (GIOChannel *source,
+                          GIOCondition condition,
+                          gpointer data)
+{
+  ForwardRFBAcrossTubesData *forward_data =
+    (ForwardRFBAcrossTubesData*) data;
+  char buffer[1024];
+  int count;
+
+  g_warning ("Passing down stuff on channel %x\n", forward_data->channel);
+
+  count = recv (g_io_channel_unix_get_fd (source),
+                buffer,
+                sizeof(buffer),
+                MSG_DONTWAIT);
+
+  if (count<0)
+    {
+      if (errno==EWOULDBLOCK)
+        return;
+
+      g_error ("xzibit bus has died; can't really carry on");
+    }
+
+  send_buffer_to_bus (forward_data->plugin,
+                      forward_data->channel,
+                      buffer,
+                      count);
+}
+
 static void
 share_window (Display *dpy,
               Window window, MutterPlugin *plugin)
@@ -541,23 +579,25 @@ share_window (Display *dpy,
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GError *error = NULL;
   unsigned char message[11];
-  int port;
+  int fd;
   Atom actual_type;
   int actual_format;
   unsigned long n_items, bytes_after;
   unsigned char *property;
   unsigned char *name_of_window = "";
   unsigned char type_of_window[2] = { 0, 0 };
+  int xzibit_id = ++highest_channel;
+  GIOChannel *channel;
+  ForwardRFBAcrossTubesData *forward_data;
       
   g_warning ("Share window...");
-  port = vnc_port (window);
-  g_warning ("Port is %d", port);
+  fd = vnc_fd (window);
 
-  if (port==0)
+  if (fd==-1)
     {
+      /* Not yet opened: open it */
       vnc_start (window);
-      port = vnc_port (window);
-      g_warning ("Port is really %d", port);
+      fd = vnc_fd (window);
     }
 
   /* and tell our counterpart about it */
@@ -566,9 +606,20 @@ share_window (Display *dpy,
               0, /* control channel */
               1, /* opcode */
               127, 0, 0, 1, /* IP address (ignored) */
-              port % 256,
-              port / 256,
+              xzibit_id % 256,
+              xzibit_id / 256,
               -1);
+
+  /* If we receive data from VNC, send it on. */
+
+  forward_data = g_malloc(sizeof(ForwardRFBAcrossTubesData));
+  forward_data->plugin = plugin;
+  forward_data->channel = xzibit_id;
+  channel = g_io_channel_unix_new (fd);
+  g_io_add_watch (channel,
+                  G_IO_IN,
+                  forward_rfb_across_tubes,
+                  forward_data);
 
   /* also supply metadata */
 
@@ -633,13 +684,13 @@ share_window (Display *dpy,
              type_of_window);
 
   send_metadata_to_bus (plugin,
-                        port, /* == xzibit id */
+                        xzibit_id,
                         XZIBIT_METADATA_NAME,
                         name_of_window,
                         -1);
 
   send_metadata_to_bus (plugin,
-                        port,
+                        xzibit_id,
                         XZIBIT_METADATA_TYPE,
                         type_of_window,
                         1);
