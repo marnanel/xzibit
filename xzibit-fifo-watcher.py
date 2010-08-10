@@ -10,17 +10,38 @@
 
 f = file('/tmp/xzibit-fifo')
 
-header = f.read(12)
+def receive():
+    c = ord(f.read(1))
+    #print 'GOT: %x' % (c,)
+    return c
 
-if header=='Xz 000.001\r\n':
+header = f.read(12)
+correct_header = 'Xz 000.001\r\n'
+
+if header==correct_header:
     print 'Header received correctly'
 else:
-    print 'Header NOT received correctly'
+    print 'Header NOT received correctly: got %s, wanted %s' % (
+        header, correct_header)
 
 while True:
-    channel = f.read(1)+f.read(1)*256
-    length = f.read(1)+f.read(1)*256
+    channel = receive()+receive()*256
+    length = receive()+receive()*256
 
     print '%d bytes on channel %x' % (length, channel)
-    f.read(b)
+    buf = []
+    for i in range(0,length):
+        buf.append(receive())
+    if channel==0 and len(buf)!=0:
+        opcode = buf[0]
+        if opcode==1:
+            print '(Open)'
+        elif opcode==2:
+            print '(Close)'
+        elif opcode==3:
+            print '(Set)'
+        elif opcode==4:
+            print '(Wall)'
+        else:
+            print '(Opcode is %d)' % (opcode)
 
