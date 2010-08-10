@@ -421,11 +421,11 @@ vnc_fd (Window id)
   VncPrivate *private = NULL;
 
   if (!servers)
-    return 0;
+    return -1;
 
   private = g_hash_table_lookup (servers,
 				 &id);
-  
+
   if (private)
     return private->fd;
   else
