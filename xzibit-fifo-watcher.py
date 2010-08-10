@@ -10,6 +10,13 @@
 
 f = file('/tmp/xzibit-fifo')
 
+header = f.read(12)
+
+if header=='Xz 000.001\r\n':
+    print 'Header received correctly'
+else:
+    print 'Header NOT received correctly'
+
 while True:
     channel = f.read(1)+f.read(1)*256
     length = f.read(1)+f.read(1)*256
