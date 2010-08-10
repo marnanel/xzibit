@@ -30,8 +30,25 @@ There are three cases:
 
 #define TEST_PORT 7177
 
+typedef enum {
+  /** everyday life */
+  XZIBIT_MULTIPLEX_STATE_NORMAL,
+
+  /** just seen 0xFE, QUOTE */
+  XZIBIT_MULTIPLEX_STATE_QUOTE,
+
+  /** just seen 0xFF, SWITCH */
+  XZIBIT_MULTIPLEX_STATE_SWITCH,
+
+  /** seen 0xFF, SWITCH, plus one byte,
+   * which is in first_byte */
+  XZIBIT_MULTIPLEX_STATE_SWITCH2,
+} XzibitMultiplexState;
+
 typedef struct {
     int current_channel;
+    XzibitMultiplexState state;
+    guint8 first_byte;
     void (*target) (unsigned int,
             const unsigned char*,
             unsigned int);
@@ -50,6 +67,8 @@ xzibit_multiplex_new (void)
 
     result->current_channel = 0;
     result->target = submit;
+    result->state = XZIBIT_MULTIPLEX_STATE_NORMAL;
+    result->first_byte = 0;
 
     return result;
 }
@@ -85,38 +104,73 @@ xzibit_multiplex_receive (XzibitMultiplex *self,
 
     while (i<size)
       {
-        if ((buffer[i] & 0xFE)==0xFE)
+	switch (self->state)
           {
-            /* a control code */
+            case XZIBIT_MULTIPLEX_STATE_NORMAL:
+                if ((buffer[i] & 0xFE)==0xFE)
+                  {
+                    /* a control code */
 
-            self->target (self->current_channel,
-                    start,
-                    i-startpos);
-
-            switch (buffer[i])
-              {
-                case 0xFE:
                     self->target (self->current_channel,
-                            buffer+i+1,
-                            1);
-                    i+=2;
-                    startpos = i;
-                    start = buffer+i;
-                    break;
+                            start,
+                            i-startpos);
 
-                case 0xFF:
-                    self->current_channel =
-                            buffer[i+2]*256+buffer[i+1];
-                    i+=3;
-                    startpos = i;
-                    start = buffer+i;
-                    break;
-              }
+                    switch (buffer[i])
+                      {
+                        case 0xFE:
+                            self->state = XZIBIT_MULTIPLEX_STATE_QUOTE;
+                            break;
 
-          }
-        else
-          {
-            i++;
+                        case 0xFF:
+                            self->state = XZIBIT_MULTIPLEX_STATE_SWITCH;
+                            break;
+                      }
+                    /*
+                       self->target (self->current_channel,
+                       buffer+i+1,
+                       1);
+                       i+=2;
+                       startpos = i;
+                       start = buffer+i;
+                       break;
+
+                       case 0xFF:
+                       self->current_channel =
+                       buffer[i+2]*256+buffer[i+1];
+                       i+=3;
+                       startpos = i;
+                       start = buffer+i;
+                       break;
+                     */
+                  }
+                else
+                  {
+                    i++;
+                  }
+                break;
+
+            case XZIBIT_MULTIPLEX_STATE_QUOTE:
+                self->target (self->current_channel,
+                        buffer+i+1,
+                        1);
+                self->state = XZIBIT_MULTIPLEX_STATE_NORMAL;
+                break;
+
+            case XZIBIT_MULTIPLEX_STATE_SWITCH:
+                self->first_byte = buffer[i];
+                self->state = XZIBIT_MULTIPLEX_STATE_SWITCH2;
+                break;
+
+            case XZIBIT_MULTIPLEX_STATE_SWITCH2:
+                self->current_channel =
+                    buffer[i]*256 + self->first_byte;
+                startpos = i;
+                start = buffer+i;
+                self->state = XZIBIT_MULTIPLEX_STATE_NORMAL;
+                break;
+
+            default:
+                g_error ("Unknown marshalling state");
           }
       }
 
