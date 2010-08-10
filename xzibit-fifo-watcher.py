@@ -8,10 +8,15 @@
 #
 # This is that dummy client.
 
+import sys
+
 f = file('/tmp/xzibit-fifo')
 
 def receive():
     c = ord(f.read(1))
+    if c=='':
+        print 'The other side has died.  Aborting.'
+        sys.exit(1)
     #print 'GOT: %x' % (c,)
     return c
 
