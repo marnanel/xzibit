@@ -429,7 +429,7 @@ vnc_fd (Window id)
   if (private)
     return private->fd;
   else
-    return 0;
+    return -1;
 }
 
 void

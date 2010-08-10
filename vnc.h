@@ -17,7 +17,7 @@ void vnc_start (Window id);
 /**
  * Returns the file descriptor which the server for the
  * given X ID is listening on.  If there is no server
- * for the given X ID, returns 0.
+ * for the given X ID, returns -1.
  */
 int vnc_fd (Window id);
 
