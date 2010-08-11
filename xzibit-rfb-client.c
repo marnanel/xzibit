@@ -110,6 +110,20 @@ static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
   /* nothing */
 }
 
+static gboolean
+check_for_rfb_replies (GIOChannel *source,
+		       GIOCondition condition,
+		       gpointer data)
+{
+  XzibitReceivedWindow *received = data;
+  char buffer[1024];
+  int fd = g_io_channel_unix_get_fd (source);
+  int count;
+
+  count = read (fd, &buffer, sizeof(buffer));
+  g_print ("We have %d bytes in an answer\n", count);
+}
+
 static void
 open_new_channel (int channel_id)
 {
@@ -118,6 +132,7 @@ open_new_channel (int channel_id)
   GtkWidget *vnc;
   int sockets[2];
   int *key;
+  GIOChannel *channel;
 
   g_print ("Opening RFB channel %x\n",
 	   channel_id);
@@ -176,6 +191,12 @@ open_new_channel (int channel_id)
 
   received->window = window;
   received->fd = sockets[0];
+
+  channel = g_io_channel_unix_new (sockets[0]);
+  g_io_add_watch (channel,
+		  G_IO_IN,
+		  check_for_rfb_replies,
+		  received);
 
   /* FIXME: attach to the expose signal
      for the new window so that we can
@@ -338,6 +359,8 @@ check_for_fd_input (GIOChannel *source,
 	}
       
     }
+
+  /* FIXME: return value?? */
 }
 
 int
