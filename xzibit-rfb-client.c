@@ -81,6 +81,32 @@ static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
   /* nothing */
 }
 
+static void
+handle_xzibit_message (int channel,
+		       unsigned char *buffer,
+		       unsigned int length)
+{
+  if (channel==0)
+    {
+      /* Control channel. */
+      unsigned char opcode;
+
+      if (length==0)
+	/* Empty messages are valid but ignored. */
+	return;
+
+      opcode = buffer[0];
+
+      g_print ("Control channel opcode %x\n", opcode);
+    }
+  else
+    {
+      /* One of the RFB channels. */
+
+      g_print ("RFB channel %d\n", channel);
+    }
+}
+
 static gboolean
 check_for_fd_input (GIOChannel *source,
 		    GIOCondition condition,
@@ -171,10 +197,12 @@ check_for_fd_input (GIOChannel *source,
 	  fd_read_through++;
 	  if (fd_read_through==fd_read_length)
 	    {
-	      g_print ("Should be all.");
+	      handle_xzibit_message (fd_read_channel,
+				     fd_read_buffer,
+				     fd_read_length);
+	      g_free (fd_read_buffer);
 	      fd_read_through = 0;
 	      fd_read_state = STATE_SEEN_HEADER;
-	      g_error ("Stop.");
 	    }
 	}
       
