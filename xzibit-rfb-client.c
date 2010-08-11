@@ -1,13 +1,21 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include <vncdisplay.h>
+#include <sys/socket.h>
 #include <X11/X.h>
+
+/****************************************************************
+ * Some globals.  FIXME: most of them have been superseded.
+ ****************************************************************/
 
 int remote_server = 1;
 int port = 7177;
 int id = 0;
-gboolean is_override_redirect = FALSE;
 int following_fd = -1;
+
+/****************************************************************
+ * Definitions used for buffer reading.
+ ****************************************************************/
 
 typedef enum {
   STATE_START,
@@ -15,11 +23,34 @@ typedef enum {
   STATE_SEEN_CHANNEL,
   STATE_SEEN_LENGTH,
 } FdReadState;
+
 FdReadState fd_read_state = STATE_START;
 int fd_read_through = 0;
 int fd_read_channel = 0;
 int fd_read_length = 0;
 char* fd_read_buffer = NULL;
+
+/**
+ * What we know about each received window.
+ */
+
+typedef struct {
+  /**
+   * The FD we're using to talk to gtk-vnc about
+   * this window.
+   */
+  int fd;
+  /**
+   * Pointer to the window itself.
+   */
+  GtkWidget *window;
+} XzibitReceivedWindow;
+
+GHashTable *received_windows = NULL;
+
+/****************************************************************
+ * Options.
+ ****************************************************************/
 
 static const GOptionEntry options[] =
 {
@@ -35,8 +66,6 @@ static const GOptionEntry options[] =
 	{
 	  "remote-server", 'r', 0, G_OPTION_ARG_INT, &remote_server,
 	  "The Xzibit code for the remote server", NULL },
-	{"override-redirect", 'o', 0, G_OPTION_ARG_NONE, &is_override_redirect,
-	"Make the client window override-redirect", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -82,6 +111,85 @@ static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 }
 
 static void
+open_new_channel (int channel_id)
+{
+  XzibitReceivedWindow *received;
+  GtkWidget *window;
+  GtkWidget *vnc;
+  int sockets[2];
+  int *key;
+
+  g_print ("Opening RFB channel %x\n",
+	   channel_id);
+
+  if (received_windows==NULL)
+    {
+      received_windows =
+	g_hash_table_new_full (g_int_hash,
+			       g_int_equal,
+			       g_free,
+			       g_free);
+    }
+
+  if (g_hash_table_lookup (received_windows,
+                           &channel_id))
+    {
+      g_warning ("But %x is already open.\n",
+		 channel_id);
+      return;
+    }
+
+  received =
+    g_malloc (sizeof (XzibitReceivedWindow));
+  key =
+    g_malloc (sizeof (int));
+
+  *key = channel_id;
+
+  g_hash_table_insert (received_windows,
+		       key,
+		       received);
+
+  socketpair (AF_LOCAL,
+	      SOCK_STREAM,
+	      0,
+	      sockets);
+
+  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
+
+  /* for now, it's not resizable */
+  gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
+
+  vnc = vnc_display_new();
+  /* FIXME: We really don't want to quit
+     ALL windows if the VNC for ONE gets
+     disconnected.
+  */
+  g_signal_connect(vnc, "vnc-disconnected", G_CALLBACK(gtk_main_quit), NULL);
+
+  vnc_display_open_fd (VNC_DISPLAY (vnc), sockets[1]);
+
+  gtk_container_add (GTK_CONTAINER (window), vnc);
+
+  gtk_widget_show_all (window);
+
+  received->window = window;
+  received->fd = sockets[0];
+
+  /* FIXME: attach to the expose signal
+     for the new window so that we can
+     add the postponed properties when
+     it maps.
+
+Also:
+  set_window_remote (window);
+  set_window_id (window, remote_server, id);
+
+   */
+}
+
+static void
 handle_xzibit_message (int channel,
 		       unsigned char *buffer,
 		       unsigned int length)
@@ -105,9 +213,8 @@ handle_xzibit_message (int channel,
 		     length);
 	    return;
 	  }
-	  g_print ("Opening RFB channel %x\n",
-		   buffer[5]|buffer[6]*256);
-	  /* FIXME: and do it */
+
+	  open_new_channel(buffer[5]|buffer[6]*256);
 	  break;
 
 	case 2: /* Close */
@@ -130,8 +237,14 @@ handle_xzibit_message (int channel,
   else
     {
       /* One of the RFB channels. */
-
-      g_print ("RFB channel %x\n", channel);
+      XzibitReceivedWindow *received =
+	g_hash_table_lookup (received_windows,
+			     &channel);
+      
+      g_print ("RFB channel %x is %p with %d\n", channel, received, received->fd);
+      /* FIXME: error checking; it could run short */
+      write (received->fd,
+	     buffer, length);
     }
 }
 
@@ -230,8 +343,6 @@ check_for_fd_input (GIOChannel *source,
 int
 main (int argc, char **argv)
 {
-  GtkWidget *window;
-  GtkWidget *vnc;
   char *port_as_string;
   GOptionContext *context;
   GError *error = NULL;
@@ -261,31 +372,7 @@ main (int argc, char **argv)
                       NULL);
     }
 
-  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-  g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
-
-  /* for now, it's not resizable */
-  gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
-
-  vnc = vnc_display_new();
-  g_signal_connect(vnc, "vnc-initialized", G_CALLBACK(vnc_initialized), window);
-  g_signal_connect(vnc, "vnc-disconnected", G_CALLBACK(gtk_main_quit), NULL);
-
 #if 0
-  port_as_string = g_strdup_printf ("%d", port);
-  vnc_display_open_host (VNC_DISPLAY (vnc),
-			 "127.0.0.1",
-			 port_as_string);
-  /* FIXME: instead, use
-     vnc_display_open_fd(VNC_DISPLAY (vnc), fd);
-     */
-  g_free (port_as_string);
-#endif
-
-  gtk_container_add (GTK_CONTAINER (window), vnc);
-
-  gtk_widget_show_all (window);
-
   if (is_override_redirect)
     {
       /* We have a window ID but it won't have been
@@ -312,19 +399,7 @@ main (int argc, char **argv)
 
        }
   gtk_widget_show_all (window);
-
-  g_warning ("RFB client shown window.\n");
-  set_window_remote (window);
-  set_window_id (window, remote_server, id);
-
-  if (is_override_redirect)
-    {
-      /* all right, it's been override-redirect
-       * for quite long enough.
-       */
-      gdk_window_set_override_redirect (GDK_WINDOW (window->window),
-					FALSE);
-     }
+#endif
 
   gtk_main ();
 }
