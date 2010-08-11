@@ -44,6 +44,10 @@ typedef struct {
    * Pointer to the window itself.
    */
   GtkWidget *window;
+  /**
+   * The xzibit ID of this window.
+   */
+  int id;
 } XzibitReceivedWindow;
 
 GHashTable *received_windows = NULL;
@@ -119,9 +123,32 @@ check_for_rfb_replies (GIOChannel *source,
   char buffer[1024];
   int fd = g_io_channel_unix_get_fd (source);
   int count;
+  char header[4];
 
   count = read (fd, &buffer, sizeof(buffer));
-  g_print ("We have %d bytes in an answer\n", count);
+
+  if (count<0)
+    {
+      /* FIXME this is silly */
+      perror ("xzibit");
+      g_error ("Something died downstream");
+    }
+
+  if (count==0)
+    {
+      return;
+    }
+
+  g_print ("We have %d bytes TO the rfb server\n", count);
+
+  header[0] = received->id % 256;
+  header[1] = received->id / 256;
+  header[2] = count % 256;
+  header[3] = count / 256;
+
+  /* FIXME: check results */
+  write (following_fd, header, sizeof (header));
+  write (following_fd, buffer, count);
 }
 
 static void
@@ -191,6 +218,7 @@ open_new_channel (int channel_id)
 
   received->window = window;
   received->fd = sockets[0];
+  received->id = channel_id;
 
   channel = g_io_channel_unix_new (sockets[0]);
   g_io_add_watch (channel,
@@ -262,7 +290,7 @@ handle_xzibit_message (int channel,
 	g_hash_table_lookup (received_windows,
 			     &channel);
       
-      g_print ("RFB channel %x is %p with %d\n", channel, received, received->fd);
+      g_print ("We have %d bytes FROM the rfb server\n", length);
       /* FIXME: error checking; it could run short */
       write (received->fd,
 	     buffer, length);

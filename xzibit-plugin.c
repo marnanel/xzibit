@@ -81,9 +81,12 @@ static GQuark actor_data_quark = 0;
 static gboolean   xevent_filter (MutterPlugin *plugin,
                             XEvent      *event);
 
-static gboolean check_for_bus_reads (GIOChannel *source,
-                                     GIOCondition condition,
-                                     gpointer data);
+static gboolean check_downwards (GIOChannel *source,
+                                    GIOCondition condition,
+                                    gpointer data);
+static gboolean check_upwards (GIOChannel *source,
+                                  GIOCondition condition,
+                                  gpointer data);
 
 static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
@@ -122,6 +125,11 @@ struct _MutterXzibitPluginPrivate
   long bus_size;
   unsigned char *bus_buffer;
   Display *dpy;
+
+  int upwards_stage;
+  int upwards_channel;
+  int upwards_length;
+  unsigned char *upwards_buffer;
 
   /**
    * Xzibit IDs mapped to XIDs on the current
@@ -201,6 +209,11 @@ start (MutterPlugin *plugin)
   priv->bus_reading_size = 1;
   priv->bus_size = 0;
 
+  priv->upwards_stage = -4;
+  priv->upwards_channel = 0;
+  priv->upwards_length = 0;
+  priv->upwards_buffer = NULL;
+
   priv->bus_fd = open ("/tmp/xzibit-fifo",
                        O_RDWR);
 
@@ -218,10 +231,24 @@ start (MutterPlugin *plugin)
              FIONBIO, (char*) &one);
 
       channel = g_io_channel_unix_new (priv->bus_fd);
-      g_io_add_watch (channel,
-                      G_IO_IN,
-                      check_for_bus_reads,
-                      plugin);
+
+      if (strcmp
+          (gdk_display_get_name (gdk_display_get_default()),
+           ":3.0")==0)
+        {
+          /* for now */
+          g_io_add_watch (channel,
+                          G_IO_IN,
+                          check_upwards,
+                          plugin);
+        }
+      else
+        {
+          g_io_add_watch (channel,
+                          G_IO_IN,
+                          check_downwards,
+                          plugin);
+        }
     }
 
   priv->receiving_fd = -1; /* not currently open */
@@ -829,9 +856,42 @@ handle_message_from_bus (MutterPlugin *plugin,
 }
 
 static gboolean
-check_for_bus_reads (GIOChannel *source,
-                     GIOCondition condition,
-                     gpointer data)
+check_for_rfb_replies (GIOChannel *source,
+                       GIOCondition condition,
+                       gpointer data)
+{
+  /* FIXME: what should the return result be? */
+  MutterPlugin *plugin = (MutterPlugin*) data;
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char buffer[4096];
+  int fd = g_io_channel_unix_get_fd (source);
+  int count;
+
+  count = read (fd, &buffer, sizeof(buffer));
+  if (count<0)
+    {
+      perror ("xzibit");
+      /* FIXME: something more sensible than this */
+      g_error ("rfb-xzibit-client seems to have died");
+    }
+
+  if (count==0)
+    {
+      return;
+    }
+
+  g_print ("Passing %d bytes on upstream\n", count);
+
+  /* FIXME: check result */
+  write (priv->bus_fd,
+         buffer,
+         count);
+}
+
+static gboolean
+check_downwards (GIOChannel *source,
+                 GIOCondition condition,
+                 gpointer data)
 {
   MutterPlugin *plugin = (MutterPlugin*) data;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
@@ -840,7 +900,7 @@ check_for_bus_reads (GIOChannel *source,
   int i;
   int q;
 
-  g_print ("Data received from opposite.\n");
+  g_print ("Data received DOWNWARDS.\n");
 
   if (priv->receiving_fd == -1)
     {
@@ -850,6 +910,7 @@ check_for_bus_reads (GIOChannel *source,
       int sockets[2];
       char *fd_as_string;
       char header[] = "Xz 000.001\r\n";
+      GIOChannel *channel;
 
       socketpair (AF_LOCAL,
                   SOCK_STREAM,
@@ -857,6 +918,12 @@ check_for_bus_reads (GIOChannel *source,
                   sockets);
 
       priv->receiving_fd = sockets[0];
+      channel = g_io_channel_unix_new (priv->receiving_fd);
+      g_io_add_watch (channel,
+                      G_IO_IN,
+                      check_for_rfb_replies,
+                      plugin);
+
       fd_as_string = g_strdup_printf ("%d",
                                       sockets[1]);
 
@@ -924,6 +991,87 @@ check_for_bus_reads (GIOChannel *source,
              buffer,
              count);
     }
+
+  return TRUE;
+}
+
+static gboolean
+check_upwards (GIOChannel *source,
+                 GIOCondition condition,
+                 gpointer data)
+{
+  MutterPlugin *plugin = (MutterPlugin*) data;
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char buffer[1024];
+  int count, i;
+  Window *xid;
+  
+  count = read (priv->bus_fd,
+                buffer,
+                sizeof(buffer));
+  g_print ("[%s] %d bytes of data received UPWARDS.\n",
+           gdk_display_get_name (gdk_display_get_default()),
+           count);
+  
+  for (i=0; i<count; i++)
+    {
+
+      if (count < 0)
+        {
+          perror ("xzibit");
+          /* FIXME */
+          g_error ("Something went wrong");
+        }
+
+      if (count==0)
+        {
+          return /* TRUE? */;
+        }
+
+      switch (priv->upwards_stage)
+        {
+        case -4:
+          priv->upwards_channel = buffer[i];
+          break;
+
+        case -3:
+          priv->upwards_channel |= buffer[i] * 256;
+          break;
+
+        case -2:
+          priv->upwards_length = buffer[i];
+          break;
+
+        case -1:
+          priv->upwards_length |= buffer[i] * 256;
+          g_print ("Channel is %d, length is %d",
+                   priv->upwards_channel,
+                   priv->upwards_length);
+          g_error ("STOP");
+          break;
+        }
+
+      priv->upwards_stage++;
+    }
+
+
+#if 0
+  xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
+                             &xzibit_id);
+
+  if (xid)
+    {
+      g_print ("This is for window %x\n", (int) xid);
+  /*
+    fd = vnc_fd (window);
+    ...
+  */
+    }
+  else
+    {
+      g_print ("I don't know that window.\n");
+    }
+#endif      
 
   return TRUE;
 }
