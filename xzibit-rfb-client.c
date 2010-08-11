@@ -197,51 +197,6 @@ check_for_fd_input (GIOChannel *source,
 	}
       
     }
-
-#if 0
-  switch (fd_read_state)
-    {
-    case STATE_START:
-      count = read (fd, &temp, sizeof(want_header)-1);
-
-      /* FIXME: might have been a partial read */
-      temp[sizeof(want_header)-1] = 0;
-
-      g_print ("Well?");
-      if (strcmp(temp, want_header)!=0)
-	{
-	  g_print ("No.\n");
-	  g_error ("Did not receive xzibit header");
-	}
-
-      g_print ("Yes.\n");
-
-      fd_read_state = STATE_SEEN_HEADER;
-      break;
-
-    case STATE_SEEN_HEADER:
-      read(fd, &temp, 2);
-      fd_read_channel = temp[1]*256 | temp[0];
-      fd_read_state = STATE_SEEN_CHANNEL;
-      break;
-
-    case STATE_SEEN_CHANNEL:
-      read(fd, &temp, 2);
-      fd_read_length = temp[1]*256 | temp[0];
-      fd_read_buffer = g_malloc (fd_read_length);
-      fd_read_state = STATE_SEEN_LENGTH;
-      break;
-
-    case STATE_SEEN_LENGTH:
-      read(fd, fd_read_buffer, fd_read_length);
-      g_print("Read %d bytes on channel %x\n",
-		fd_read_length,
-		fd_read_channel);
-      g_free (fd_read_buffer);
-      fd_read_state = STATE_SEEN_HEADER;
-      break;
-    }
-#endif
 }
 
 int
