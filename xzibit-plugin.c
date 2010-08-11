@@ -29,6 +29,7 @@
 
 #include "mutter-plugin.h"
 #include "vnc.h"
+#include <gdk/gdk.h>
 #include <X11/extensions/XI2.h>
 #include <stdarg.h>
 
@@ -43,6 +44,7 @@
 #include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/ioctl.h>
 
 #define ACTOR_DATA_KEY "MCCP-Xzibit-actor-data"
 
@@ -106,6 +108,14 @@ struct _MutterXzibitPluginPrivate
    * to using Telepathy.
    */
   int bus_fd;
+
+  /**
+   * The FD connected to the local instance of xzibit-rfb-client.
+   */
+  int receiving_fd;
+
+  /**
+   */
 
   int bus_count;
   int bus_reading_size;
@@ -201,21 +211,20 @@ start (MutterPlugin *plugin)
   else
     {
       GIOChannel *channel;
-      char header[] = "Xz 000.001\r\n";
+      int one = 1;
 
-      write (priv->bus_fd, header,
-             sizeof(header)-1 /* no trailing null */);
-      fsync (priv->bus_fd);
+      /* set the fd nonblocking */
+      ioctl (priv->bus_fd,
+             FIONBIO, (char*) &one);
 
-#if 0
-      /* not at present */
       channel = g_io_channel_unix_new (priv->bus_fd);
       g_io_add_watch (channel,
                       G_IO_IN,
                       check_for_bus_reads,
                       plugin);
-#endif
     }
+
+  priv->receiving_fd = -1; /* not currently open */
 
   priv->remote_xzibit_id_to_xid =
     g_hash_table_new_full (g_int_hash,
@@ -472,7 +481,8 @@ send_to_bus (MutterPlugin *plugin,
   buffer[2] = count % 256;
   buffer[3] = count / 256;
 
-  g_warning ("Sending buffer of length %d\n", count);
+  g_warning ("Sending buffer of length %d\n",
+             count);
 
   write (priv->bus_fd, buffer, count+4);
   fsync (priv->bus_fd);
@@ -590,7 +600,10 @@ share_window (Display *dpy,
   GIOChannel *channel;
   ForwardRFBAcrossTubesData *forward_data;
       
-  g_warning ("Share window...");
+  g_print ("[%s] Share window %x...",
+           gdk_display_get_name (gdk_display_get_default()),
+           (int) window
+           );
   fd = vnc_fd (window);
 
   if (fd==-1)
@@ -827,48 +840,90 @@ check_for_bus_reads (GIOChannel *source,
   int i;
   int q;
 
-  count = recv (priv->bus_fd,
+  g_print ("Data received from opposite.\n");
+
+  if (priv->receiving_fd == -1)
+    {
+      /* No remote client?  Make one. */
+
+      char *argvl[4];
+      int sockets[2];
+      char *fd_as_string;
+      char header[] = "Xz 000.001\r\n";
+
+      socketpair (AF_LOCAL,
+                  SOCK_STREAM,
+                  0,
+                  sockets);
+
+      priv->receiving_fd = sockets[0];
+      fd_as_string = g_strdup_printf ("%d",
+                                      sockets[1]);
+
+      argvl[0] = "xzibit-rfb-client";
+      argvl[1] = "-f";
+      argvl[2] = fd_as_string;
+      argvl[3] = 0;
+
+      g_print ("[%s] Our side is %d, their side is %d\n",
+               gdk_display_get_name (gdk_display_get_default()),
+               sockets[0], sockets[1]);
+
+      g_spawn_async (
+                     "/",
+                     (gchar**) argvl,
+                     NULL,
+                     G_SPAWN_SEARCH_PATH|
+                     G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
+                     NULL, NULL,
+                     NULL,
+                     NULL /* FIXME: check errors */
+                     );
+
+      g_free (fd_as_string);
+
+      g_print ("[%s] And sending the header now.\n",
+               gdk_display_get_name (gdk_display_get_default()));
+
+      write (priv->receiving_fd, header,
+             sizeof(header)-1 /* no trailing null */);
+      fsync (priv->receiving_fd);
+    }
+
+  count = read (priv->bus_fd,
                 buffer,
-                sizeof(buffer),
-                MSG_DONTWAIT);
+                sizeof(buffer));
+
+  if (count==0)
+    return;
 
   if (count<0)
     {
       if (errno==EWOULDBLOCK)
         return;
 
+      perror ("xzibit");
+
       g_error ("xzibit bus has died; can't really carry on");
     }
 
-  for (i=0; i<count; i++) {
-    if (priv->bus_reading_size) {
-      priv->bus_size >>= 8;
-      priv->bus_size |= (buffer[i]<< 8*3);
-          
-      if (priv->bus_count == 3)
-        {
-          priv->bus_reading_size = 0;
-          priv->bus_count = -1;
-
-          priv->bus_buffer = g_malloc (priv->bus_size);
-        }
-    } else {
-      priv->bus_buffer[priv->bus_count] = buffer[i];
-
-      if (priv->bus_count == priv->bus_size-1)
-        {
-          handle_message_from_bus (plugin,
-                                   priv->bus_buffer,
-                                   priv->bus_size);
-          g_free (priv->bus_buffer);
-          priv->bus_count = -1;
-          priv->bus_reading_size = 1;
-        }
+  /* now, if we have an xzibit-rfb-client,
+   * write the data out to it.
+   */
+  if (priv->receiving_fd != -1)
+    {
+      int i;
+      g_print ("[%s]: Sending %d bytes downstream to FD %d -",
+               gdk_display_get_name (gdk_display_get_default()),
+               count, priv->receiving_fd);
+      for (i=0; i<count; i++) {
+        g_print (" %02x", buffer[i]);
+      }
+      g_print("\n");
+      write (priv->receiving_fd,
+             buffer,
+             count);
     }
-
-    priv->bus_count++;
-    
-  }
 
   return TRUE;
 }
