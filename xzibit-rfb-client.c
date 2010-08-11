@@ -117,10 +117,6 @@ check_for_fd_input (GIOChannel *source,
   int count, i;
   char want_header[] = "Xz 000.001\r\n";
 
-  g_print ("[%s] Check for FD input on %d.\n",
-           gdk_display_get_name (gdk_display_get_default()),
-	   fd);
-
   count = read (fd, &buffer, sizeof(buffer));
 
   if (count<0) {
@@ -133,15 +129,11 @@ check_for_fd_input (GIOChannel *source,
   
   for (i=0; i<count; i++)
     {
-      g_print ("Received %02x\n", buffer[i]);
-
       switch (fd_read_state)
 	{
 	case STATE_START:
 	  if (want_header[fd_read_through] != buffer[i])
 	    {
-	      g_print ("[%s] Header not received\n",
-		       gdk_display_get_name (gdk_display_get_default()));
 	      g_error ("Header not received");
 	    }
 
@@ -165,7 +157,6 @@ check_for_fd_input (GIOChannel *source,
 
 	    case 1:
 	      fd_read_channel |= buffer[i]*256;
-	      g_print ("Channel == %d\n", fd_read_channel);
 	      fd_read_through = 0;
 	      fd_read_state = STATE_SEEN_CHANNEL;
 	      break;
@@ -183,7 +174,6 @@ check_for_fd_input (GIOChannel *source,
 
 	    case 1:
 	      fd_read_length |= buffer[i]*256;
-	      g_print ("Length == %d\n", fd_read_length);
 	      fd_read_buffer = g_malloc (fd_read_length);
 	      fd_read_through = 0;
 	      fd_read_state = STATE_SEEN_LENGTH;
