@@ -7,6 +7,19 @@ int remote_server = 1;
 int port = 7177;
 int id = 0;
 gboolean is_override_redirect = FALSE;
+int following_fd = -1;
+
+typedef enum {
+  STATE_START,
+  STATE_SEEN_HEADER,
+  STATE_SEEN_CHANNEL,
+  STATE_SEEN_LENGTH,
+} FdReadState;
+FdReadState fd_read_state = STATE_START;
+int fd_read_through = 0;
+int fd_read_channel = 0;
+int fd_read_length = 0;
+char* fd_read_buffer = NULL;
 
 static const GOptionEntry options[] =
 {
@@ -16,6 +29,9 @@ static const GOptionEntry options[] =
 	{
 	  "id", 'i', 0, G_OPTION_ARG_INT, &id,
 	  "The Xzibit ID of the window", NULL },
+	{
+	  "fd", 'f', 0, G_OPTION_ARG_INT, &following_fd,
+	  "The file descriptor which conveys the RFB protocol", NULL },
 	{
 	  "remote-server", 'r', 0, G_OPTION_ARG_INT, &remote_server,
 	  "The Xzibit code for the remote server", NULL },
@@ -65,6 +81,147 @@ static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
   /* nothing */
 }
 
+static gboolean
+check_for_fd_input (GIOChannel *source,
+		    GIOCondition condition,
+		    gpointer data)
+{
+  char buffer[1024];
+  int fd = g_io_channel_unix_get_fd (source);
+  int count, i;
+  char want_header[] = "Xz 000.001\r\n";
+
+  g_print ("Check for FD input on %d.\n", fd);
+
+  count = read (fd, &buffer, sizeof(buffer));
+
+  if (count<0) {
+    perror ("xzibit");
+    return;
+  }
+  if (count==0) {
+    return;
+  }
+  
+  for (i=0; i<count; i++)
+    {
+      g_print ("Received %02x\n", buffer[i]);
+
+      switch (fd_read_state)
+	{
+	case STATE_START:
+	  if (want_header[fd_read_through] != buffer[i])
+	    {
+	      g_error ("Header not received");
+	    }
+
+	  fd_read_through++;
+
+	  if (want_header[fd_read_through]==0)
+	    {
+	      fd_read_through = 0;
+	      fd_read_state = STATE_SEEN_HEADER;
+	    }
+	  break;
+
+	case STATE_SEEN_HEADER:
+	  /* Seen header; read channel */
+	  switch (fd_read_through)
+	    {
+	    case 0:
+	      fd_read_channel = buffer[i];
+	      fd_read_through = 1;
+	      break;
+
+	    case 1:
+	      fd_read_channel |= buffer[i]*256;
+	      g_print ("Channel == %d\n", fd_read_channel);
+	      fd_read_through = 0;
+	      fd_read_state = STATE_SEEN_CHANNEL;
+	      break;
+	    }
+	  break;
+
+	case STATE_SEEN_CHANNEL:
+	  /* Seen channel; read length */
+	  switch (fd_read_through)
+	    {
+	    case 0:
+	      fd_read_length = buffer[i];
+	      fd_read_through = 1;
+	      break;
+
+	    case 1:
+	      fd_read_length |= buffer[i]*256;
+	      g_print ("Length == %d\n", fd_read_length);
+	      fd_read_buffer = g_malloc (fd_read_length);
+	      fd_read_through = 0;
+	      fd_read_state = STATE_SEEN_LENGTH;
+	      break;
+	    }
+	  break;
+
+	case STATE_SEEN_LENGTH:
+	  /* Seen length; read data */
+	  fd_read_buffer[fd_read_through] = buffer[i];
+	  fd_read_through++;
+	  if (fd_read_through==fd_read_length)
+	    {
+	      g_print ("Should be all.");
+	      fd_read_through = 0;
+	      fd_read_state = STATE_SEEN_HEADER;
+	      g_error ("Stop.");
+	    }
+	}
+      
+    }
+
+#if 0
+  switch (fd_read_state)
+    {
+    case STATE_START:
+      count = read (fd, &temp, sizeof(want_header)-1);
+
+      /* FIXME: might have been a partial read */
+      temp[sizeof(want_header)-1] = 0;
+
+      g_print ("Well?");
+      if (strcmp(temp, want_header)!=0)
+	{
+	  g_print ("No.\n");
+	  g_error ("Did not receive xzibit header");
+	}
+
+      g_print ("Yes.\n");
+
+      fd_read_state = STATE_SEEN_HEADER;
+      break;
+
+    case STATE_SEEN_HEADER:
+      read(fd, &temp, 2);
+      fd_read_channel = temp[1]*256 | temp[0];
+      fd_read_state = STATE_SEEN_CHANNEL;
+      break;
+
+    case STATE_SEEN_CHANNEL:
+      read(fd, &temp, 2);
+      fd_read_length = temp[1]*256 | temp[0];
+      fd_read_buffer = g_malloc (fd_read_length);
+      fd_read_state = STATE_SEEN_LENGTH;
+      break;
+
+    case STATE_SEEN_LENGTH:
+      read(fd, fd_read_buffer, fd_read_length);
+      g_print("Read %d bytes on channel %x\n",
+		fd_read_length,
+		fd_read_channel);
+      g_free (fd_read_buffer);
+      fd_read_state = STATE_SEEN_HEADER;
+      break;
+    }
+#endif
+}
+
 int
 main (int argc, char **argv)
 {
@@ -88,6 +245,17 @@ main (int argc, char **argv)
       return 1;
     }
 
+  if (following_fd!=-1)
+    {
+      GIOChannel *channel;
+      g_print ("Following FD %d\n", following_fd);
+      channel = g_io_channel_unix_new (following_fd);
+      g_io_add_watch (channel,
+                      G_IO_IN,
+                      check_for_fd_input,
+                      NULL);
+    }
+
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
 
@@ -98,6 +266,7 @@ main (int argc, char **argv)
   g_signal_connect(vnc, "vnc-initialized", G_CALLBACK(vnc_initialized), window);
   g_signal_connect(vnc, "vnc-disconnected", G_CALLBACK(gtk_main_quit), NULL);
 
+#if 0
   port_as_string = g_strdup_printf ("%d", port);
   vnc_display_open_host (VNC_DISPLAY (vnc),
 			 "127.0.0.1",
@@ -106,6 +275,7 @@ main (int argc, char **argv)
      vnc_display_open_fd(VNC_DISPLAY (vnc), fd);
      */
   g_free (port_as_string);
+#endif
 
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
