@@ -97,13 +97,41 @@ handle_xzibit_message (int channel,
 
       opcode = buffer[0];
 
-      g_print ("Control channel opcode %x\n", opcode);
+      switch (opcode)
+	{
+	case 1: /* Open */
+	  if (length!=7) {
+	    g_print ("Open message; bad length (%d)\n",
+		     length);
+	    return;
+	  }
+	  g_print ("Opening RFB channel %x\n",
+		   buffer[5]|buffer[6]*256);
+	  /* FIXME: and do it */
+	  break;
+
+	case 2: /* Close */
+	  g_print ("Close; ignored for now\n");
+	  break;
+
+	case 3: /* Set */
+	  g_print ("Set; ignored for now\n");
+	  break;
+
+	case 4: /* Wall */
+	  g_print ("Wall; ignored for now\n");
+	  break;
+
+	default:
+	  g_warning ("Unknown control channel opcode %x\n",
+		     opcode);
+	}
     }
   else
     {
       /* One of the RFB channels. */
 
-      g_print ("RFB channel %d\n", channel);
+      g_print ("RFB channel %x\n", channel);
     }
 }
 
