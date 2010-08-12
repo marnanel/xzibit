@@ -45,6 +45,9 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <netinet/in.h>
+
+#define XZIBIT_PORT 7177
 
 #define ACTOR_DATA_KEY "MCCP-Xzibit-actor-data"
 
@@ -87,6 +90,9 @@ static gboolean check_downwards (GIOChannel *source,
 static gboolean check_upwards (GIOChannel *source,
                                   GIOCondition condition,
                                   gpointer data);
+static gboolean accept_connections (GIOChannel *source,
+                                    GIOCondition condition,
+                                    gpointer data);
 
 static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
@@ -190,6 +196,7 @@ start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   int flags;
+  GIOChannel *channel;
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -214,28 +221,54 @@ start (MutterPlugin *plugin)
   priv->upwards_length = 0;
   priv->upwards_buffer = NULL;
 
-  priv->bus_fd = open ("/tmp/xzibit-fifo",
-                       O_RDWR);
-
-  if (priv->bus_fd < 0)
+  if (g_getenv("XZIBIT_TEST_AS_CLIENT"))
     {
-      g_warning ("Could not create a socket; things will break\n");
+      /* This is a special case for testing
+       * on a single host:
+       * we don't create a listening socket,
+       * but instead we connect to the socket
+       * created by the other process running
+       * on the same machine.
+       */
+      g_print ("Here we would connect as a client.\n");
     }
   else
     {
-      GIOChannel *channel;
-      int one = 1;
+      struct sockaddr_in addr;
 
-      /* set the fd nonblocking */
-      ioctl (priv->bus_fd,
-             FIONBIO, (char*) &one);
+      g_print ("Here we listen as a server as usual.\n");
+
+      memset (&addr, 0, sizeof (addr));
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons (XZIBIT_PORT);
+
+      /* FIXME: some decent error checking would be good */
+
+      priv->bus_fd = socket (PF_INET,
+                             SOCK_STREAM,
+                             IPPROTO_TCP);
+
+      if (priv->bus_fd < 0)
+        {
+          g_error ("Could not create a socket; things will break\n");
+        }
+
+      bind (priv->bus_fd,
+            (struct sockaddr*) &addr,
+            sizeof(struct sockaddr_in));
+
+      listen (priv->bus_fd,
+              4096);
 
       channel = g_io_channel_unix_new (priv->bus_fd);
 
-      if (strcmp
-          (gdk_display_get_name (gdk_display_get_default()),
-           ":3.0")==0)
-        {
+      g_io_add_watch (channel,
+                      G_IO_IN,
+                      accept_connections,
+                      plugin);
+
+#if 0
+      /* FIXME TO HERE */
           /* for now */
           g_io_add_watch (channel,
                           G_IO_IN,
@@ -249,6 +282,7 @@ start (MutterPlugin *plugin)
                           check_downwards,
                           plugin);
         }
+#endif
     }
 
   priv->receiving_fd = -1; /* not currently open */
@@ -993,6 +1027,15 @@ check_downwards (GIOChannel *source,
     }
 
   return TRUE;
+}
+
+static gboolean
+accept_connections (GIOChannel *source,
+                    GIOCondition condition,
+                    gpointer data)
+{
+  g_print ("Connection on our socket.\n");
+  g_error ("Stop.");
 }
 
 static gboolean
