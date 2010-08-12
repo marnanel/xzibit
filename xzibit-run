@@ -55,6 +55,9 @@ def launch(args, stdout=None, test_as_client=False):
     env = os.environ
     if test_as_client:
         env['XZIBIT_TEST_AS_CLIENT'] = '1'
+        # make sure the server has time to
+        # start up
+        time.sleep(1)
 
     p = Popen(args, stdout=stdout, stderr=devnull, env=env)
     if p.returncode > 0:
