@@ -46,12 +46,17 @@ def abort():
     print 'Aborting.'
     sys.exit(2)
 
-def launch(args, stdout=None):
+def launch(args, stdout=None, test_as_client=False):
     if verbose:
         devnull = None
     else:
         devnull = file('/dev/null')
-    p = Popen(args, stdout=stdout, stderr=devnull)
+
+    env = os.environ
+    if test_as_client:
+        env['XZIBIT_TEST_AS_CLIENT'] = '1'
+
+    p = Popen(args, stdout=stdout, stderr=devnull, env=env)
     if p.returncode > 0:
         print 'When I ran the command ',command
         print 'I was told: ',p.returncode
@@ -226,7 +231,8 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
 # to check whether it contains an error saying xzibit could
 # not be loaded
 launch(['../src/mutter', '--replace', '--sync', '--display', ':3'])
-launch(['../src/mutter', '--replace', '--sync', '--display', ':4'])
+launch(['../src/mutter', '--replace', '--sync', '--display', ':4'],
+       test_as_client=True)
 
 time.sleep(1)
 
