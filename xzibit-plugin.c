@@ -113,13 +113,20 @@ struct _MutterXzibitPluginPrivate
   int cardinal_atom;
 
   /**
-   * The FD of the xzibit bus, which we're using until we switch
-   * to using Telepathy.
+   * On the server side:
+   * the FD of the listening socket.
    */
-  int bus_fd;
+  int listening_fd;
 
   /**
-   * The FD connected to the local instance of xzibit-rfb-client.
+   * On the server side:
+   * the FD connected to the remote xzibit instance.
+   */
+  int upwards_fd;
+
+  /**
+   * On the client side:
+   * the FD connected to the local instance of xzibit-rfb-client.
    */
   int receiving_fd;
 
@@ -244,23 +251,23 @@ start (MutterPlugin *plugin)
 
       /* FIXME: some decent error checking would be good */
 
-      priv->bus_fd = socket (PF_INET,
-                             SOCK_STREAM,
-                             IPPROTO_TCP);
+      priv->listening_fd = socket (PF_INET,
+                                   SOCK_STREAM,
+                                   IPPROTO_TCP);
 
-      if (priv->bus_fd < 0)
+      if (priv->listening_fd < 0)
         {
           g_error ("Could not create a socket; things will break\n");
         }
 
-      bind (priv->bus_fd,
+      bind (priv->listening_fd,
             (struct sockaddr*) &addr,
             sizeof(struct sockaddr_in));
 
-      listen (priv->bus_fd,
+      listen (priv->listening_fd,
               4096);
 
-      channel = g_io_channel_unix_new (priv->bus_fd);
+      channel = g_io_channel_unix_new (priv->listening_fd);
 
       g_io_add_watch (channel,
                       G_IO_IN,
@@ -268,15 +275,7 @@ start (MutterPlugin *plugin)
                       plugin);
 
 #if 0
-      /* FIXME TO HERE */
-          /* for now */
-          g_io_add_watch (channel,
-                          G_IO_IN,
-                          check_upwards,
-                          plugin);
-        }
-      else
-        {
+{
           g_io_add_watch (channel,
                           G_IO_IN,
                           check_downwards,
@@ -545,8 +544,8 @@ send_to_bus (MutterPlugin *plugin,
   g_warning ("Sending buffer of length %d\n",
              count);
 
-  write (priv->bus_fd, buffer, count+4);
-  fsync (priv->bus_fd);
+  write (priv->upwards_fd, buffer, count+4);
+  fsync (priv->upwards_fd);
 
   g_free (buffer);
 }
@@ -570,9 +569,9 @@ send_buffer_to_bus (MutterPlugin *plugin,
   header_buffer[2] = length % 256;
   header_buffer[3] = length / 256;
 
-  write (priv->bus_fd, header_buffer, 4);
-  write (priv->bus_fd, buffer, length);  
-  fsync (priv->bus_fd);
+  write (priv->upwards_fd, header_buffer, 4);
+  write (priv->upwards_fd, buffer, length);  
+  fsync (priv->upwards_fd);
 }
 
 static void
@@ -600,11 +599,11 @@ send_metadata_to_bus (MutterPlugin *plugin,
   preamble[7] = metadata_type % 256;
   preamble[8] = metadata_type / 256;
 
-  write (priv->bus_fd, preamble,
+  write (priv->upwards_fd, preamble,
          sizeof(preamble));
-  write (priv->bus_fd, metadata,
+  write (priv->upwards_fd, metadata,
          metadata_length);  
-  fsync (priv->bus_fd);
+  fsync (priv->upwards_fd);
 }
 
 typedef struct {
@@ -917,7 +916,7 @@ check_for_rfb_replies (GIOChannel *source,
   g_print ("Passing %d bytes on upstream\n", count);
 
   /* FIXME: check result */
-  write (priv->bus_fd,
+  write (priv->upwards_fd,
          buffer,
          count);
 }
@@ -991,7 +990,7 @@ check_downwards (GIOChannel *source,
       fsync (priv->receiving_fd);
     }
 
-  count = read (priv->bus_fd,
+  count = read (priv->upwards_fd,
                 buffer,
                 sizeof(buffer));
 
@@ -1034,8 +1033,19 @@ accept_connections (GIOChannel *source,
                     GIOCondition condition,
                     gpointer data)
 {
+  MutterPlugin *plugin = (MutterPlugin*) data;
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  GIOChannel *channel;
+
   g_print ("Connection on our socket.\n");
-  g_error ("Stop.");
+
+  priv->upwards_fd = accept (priv->socket_fd, NULL, NULL);
+
+  channel = g_io_channel_unix_new (priv->upwards_fd);
+  g_io_add_watch (channel,
+                  G_IO_IN,
+                  check_upwards,
+                  plugin);
 }
 
 static gboolean
@@ -1049,7 +1059,7 @@ check_upwards (GIOChannel *source,
   int count, i;
   Window *xid;
   
-  count = read (priv->bus_fd,
+  count = read (priv->upwards_fd,
                 buffer,
                 sizeof(buffer));
   g_print ("[%s] %d bytes of data received UPWARDS.\n",
