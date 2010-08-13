@@ -38,6 +38,10 @@ def usage():
     print '      send these comma-separated switches to autoshare'
     print '  --events'
     print '      list events on the source window'
+    print '  --strace'
+    print '      trace filesystem calls from the mutter processes'
+    print '  --verbose'
+    print '      be verbose; specifically, show stderr of mutter processes'
 
 def banner():
     print ' - = - X Z I B I T - = -'
@@ -121,7 +125,7 @@ banner()
 try:
     opts, args = getopt.getopt(sys.argv[1:], "",
                                ["test=", "autoshare=", "events",
-                                "list", "verbose",
+                                "list", "verbose", "strace",
                                 "help"])
 except getopt.GetoptError, err:
     print str(err)
@@ -136,7 +140,7 @@ if options.has_key('--help') or options=={}:
     usage()
     sys.exit(0)
 
-if options.has_key('--verbose'):
+if options.has_key('--verbose') or options.has_key('--strace'):
     verbose = True
 
 if options.has_key('--list'):
@@ -233,9 +237,11 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
 # FIXME: the stderr of these processes needs to be monitored
 # to check whether it contains an error saying xzibit could
 # not be loaded
-launch(['../src/mutter', '--replace', '--sync', '--display', ':3'])
-launch(['../src/mutter', '--replace', '--sync', '--display', ':4'],
-       test_as_client=True)
+mutter = ['../src/mutter', '--replace', '--sync', '--display']
+if options.has_key('--strace'):
+    mutter = ['strace', '-f', '-e', 'trace=file']+mutter
+launch(mutter+[':3'], test_as_client=True)
+launch(mutter+[':4'])
 
 time.sleep(1)
 
