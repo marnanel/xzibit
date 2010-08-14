@@ -56,13 +56,17 @@ def launch(args, stdout=None, test_as_client=False):
     else:
         devnull = file('/dev/null')
 
+    envvar = 'XZIBIT_TEST_AS_CLIENT'
+        
     env = os.environ
     if test_as_client:
-        env['XZIBIT_TEST_AS_CLIENT'] = '1'
+        env[envvar] = '1'
         # make sure the server has time to
         # start up
         time.sleep(1)
-
+    elif env.has_key(envvar):
+        del env[envvar]
+        
     p = Popen(args, stdout=stdout, stderr=devnull, env=env)
     if p.returncode > 0:
         print 'When I ran the command ',command
@@ -233,7 +237,6 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
                            int(screen_height)-100),
         '-b', 'remove,maximized_vert,maximized_horz'])
 
-# TODO: an option to replace the following with: launch(['strace', '-f', '-e', 'trace=file', '../src/mutter', '--replace', '--sync', '--display', ':3'])
 # FIXME: the stderr of these processes needs to be monitored
 # to check whether it contains an error saying xzibit could
 # not be loaded
