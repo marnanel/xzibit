@@ -251,7 +251,6 @@ debug_flow (const char *place,
   debug_flow (place, buffer, count);
 #else
 #define DEBUG_FLOW(place, buffer, count) ;
- */
 #endif
 
 static void
