@@ -1,15 +1,8 @@
 
-FOR THURSDAY
-
- 1. Make a plugin.
- 2. Make the plugin talk the xzibit bus protocol.
- 3. xzibit-share should send _XZIBIT_SHARE to the root window.
- 4. The plugin should notice this and:
- 5.  -- launch noddy-rfb-server
- 6.  -- send its socket address over the bus
- 7. The plugin should retrieve socket addresses and launch vinagre.
-
-FOR FRIDAY
-
- 1. Send the actual contents of the window, not a picture of Xzibit.
-
+ - Think whether we should really have the names
+   "client_fd" and "server_fd" the way round that they are.
+ - client_fd should be a hash table mapping xzibit IDs to
+   FDs, not a singleton.  At the same time, consider how
+   we'll deal with multiple remote xzibits as well.
+ - Move all the postponed properties code out of xzibit-plugin
+   into xzibit-rfb-client.
