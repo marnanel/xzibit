@@ -195,6 +195,12 @@ debug_flow (const char *place,
   g_print ("\n");
 }
 
+/* leave it turned off for now
+#define DEBUG_FLOW(place, buffer, count) \
+  debug_flow (place, buffer, count);
+ */
+#define DEBUG_FLOW(place, buffer, count) ;
+
 static void
 mutter_xzibit_plugin_dispose (GObject *object)
 {
@@ -604,7 +610,7 @@ send_from_bottom (MutterPlugin *plugin,
   buffer[2] = count % 256;
   buffer[3] = count / 256;
 
-  debug_flow ("sent normal from BOTTOM towards TOP",
+  DEBUG_FLOW ("sent normal from BOTTOM towards TOP",
               buffer, count);
 
   write (priv->bottom_fd, buffer, count+4);
@@ -625,7 +631,7 @@ send_buffer_from_bottom (MutterPlugin *plugin,
   if (length==-1)
     length = strlen (buffer);
 
-  debug_flow ("sent buffer from BOTTOM towards TOP",
+  DEBUG_FLOW ("sent buffer from BOTTOM towards TOP",
               buffer, length);
 
   header_buffer[0] = channel % 256;
@@ -651,7 +657,7 @@ send_metadata_from_bottom (MutterPlugin *plugin,
   if (metadata_length==-1)
     metadata_length = strlen (metadata);
 
-  debug_flow ("sent metadata from BOTTOM towards TOP",
+  DEBUG_FLOW ("sent metadata from BOTTOM towards TOP",
               metadata, metadata_length);
 
   preamble[0] = 0; /* channel 0, always */
@@ -691,7 +697,7 @@ copy_client_to_bottom (GIOChannel *source,
                 sizeof(buffer),
                 MSG_DONTWAIT);
 
-  debug_flow ("forwarded from CLIENT to BOTTOM",
+  DEBUG_FLOW ("forwarded from CLIENT to BOTTOM",
               buffer, count);
 
   if (count<0)
@@ -988,7 +994,7 @@ copy_server_to_top (GIOChannel *source,
       return;
     }
 
-  debug_flow ("forwarding from SERVER to TOP", buffer, count);
+  DEBUG_FLOW ("forwarding from SERVER to TOP", buffer, count);
 
   /* FIXME: check result */
   write (priv->top_fd,
@@ -1072,14 +1078,14 @@ copy_top_to_server (GIOChannel *source,
       g_error ("xzibit bus has died; can't really carry on");
     }
 
-  debug_flow ("received at TOP", buffer, count);
+  DEBUG_FLOW ("received at TOP", buffer, count);
 
   /* now, if we have an xzibit-rfb-client,
    * write the data out to it.
    */
   if (priv->server_fd != -1)
     {
-      debug_flow ("sent to x-r-c", buffer, count);
+      DEBUG_FLOW ("sent to x-r-c", buffer, count);
 
       write (priv->server_fd,
              buffer,
@@ -1113,7 +1119,7 @@ accept_connections (GIOChannel *source,
 
   priv->top_fd = accept (priv->listening_fd, NULL, NULL);
 
-  debug_flow ("sending header",
+  DEBUG_FLOW ("sending header",
               xzibit_header,
               sizeof(xzibit_header)-1);
   write (priv->top_fd,
@@ -1153,7 +1159,7 @@ handle_message_to_client (MutterPlugin *plugin,
 
   /* FIXME: error checking; it could run short */
 
-  debug_flow ("sent from TOP to CLIENT",
+  DEBUG_FLOW ("sent from TOP to CLIENT",
               buffer, length);
   write (fd, buffer, length);
 }
@@ -1179,7 +1185,7 @@ copy_bottom_to_client (GIOChannel *source,
       g_error ("Something downstream died.");
     }
 
-  debug_flow ("received at BOTTOM from TOP", buffer, count);
+  DEBUG_FLOW ("received at BOTTOM from TOP", buffer, count);
   
   for (i=0; i<count; i++)
     {
