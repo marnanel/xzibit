@@ -66,6 +66,7 @@ typedef struct _MutterXzibitPluginClass   MutterXzibitPluginClass;
 typedef struct _MutterXzibitPluginPrivate MutterXzibitPluginPrivate;
 
 int highest_channel = 0;
+char xzibit_header[] = "Xz 000.001\r\n";
 
 struct _MutterXzibitPlugin
 {
@@ -84,9 +85,12 @@ static GQuark actor_data_quark = 0;
 static gboolean   xevent_filter (MutterPlugin *plugin,
                             XEvent      *event);
 
-static gboolean check_downwards (GIOChannel *source,
+static gboolean copy_top_to_server (GIOChannel *source,
                                     GIOCondition condition,
                                     gpointer data);
+static gboolean copy_bottom_to_client (GIOChannel *source,
+                                       GIOCondition condition,
+                                       gpointer data);
 static gboolean check_upwards (GIOChannel *source,
                                   GIOCondition condition,
                                   gpointer data);
@@ -112,23 +116,38 @@ struct _MutterXzibitPluginPrivate
   int wm_transient_for_atom;
   int cardinal_atom;
 
-  /**
-   * On the server side:
-   * the FD of the listening socket.
+  /*
+   * File descriptors:
+   * They work as follows.   () = fd
+   *
+   * [xzibit-rfb-client]---()=server_fd
+   *                       ||
+   *                top_fd=()<--()=listening_fd (on port 7177)
+   *                        \\  ||
+   *                          {TUBES}
+   *                            \\
+   *                             ()=bottom_fd
+   *                             ||
+   *            [libvncserver]---()=client_fd
+   *
+   * I know it's a bit confusing that "server" links to
+   * xzibit-rfb-*client*.  x-r-c is an RFB client, but
+   * provides the Xzibit service.
    */
+
+  int server_fd;
+  int top_fd;
   int listening_fd;
+  int bottom_fd;
+  int client_fd; /* FIXME: it may not be necessary to store this */
 
   /**
-   * On the server side:
-   * the FD connected to the remote xzibit instance.
+   * Set if we're running under a test harness,
+   * on the side that doesn't listen as a server.
+   * FIXME: this is equivalent to listening_fd==-1
+   * and perhaps we can do without it.
    */
-  int upwards_fd;
-
-  /**
-   * On the client side:
-   * the FD connected to the local instance of xzibit-rfb-client.
-   */
-  int receiving_fd;
+  gboolean test_as_client;
 
   /**
    */
@@ -139,10 +158,10 @@ struct _MutterXzibitPluginPrivate
   unsigned char *bus_buffer;
   Display *dpy;
 
-  int upwards_stage;
-  int upwards_channel;
-  int upwards_length;
-  unsigned char *upwards_buffer;
+  int bottom_stage;
+  int bottom_channel;
+  int bottom_length;
+  unsigned char *bottom_buffer;
 
   /**
    * Xzibit IDs mapped to XIDs on the current
@@ -157,6 +176,24 @@ struct _MutterXzibitPluginPrivate
    */
   GHashTable *postponed_metadata;
 };
+
+static void
+debug_flow (const char *place,
+            char *buffer, int count)
+{
+  int i;
+
+  g_print ("[%s] %d bytes of data %s:",
+           gdk_display_get_name (gdk_display_get_default()),
+           count,
+           place);
+
+  for (i=0; i<count; i++) {
+    g_print (" %02x", buffer[i]);
+  }
+
+  g_print ("\n");
+}
 
 static void
 mutter_xzibit_plugin_dispose (GObject *object)
@@ -223,10 +260,10 @@ start (MutterPlugin *plugin)
   priv->bus_reading_size = 1;
   priv->bus_size = 0;
 
-  priv->upwards_stage = -4;
-  priv->upwards_channel = 0;
-  priv->upwards_length = 0;
-  priv->upwards_buffer = NULL;
+  priv->bottom_stage = -3 - sizeof(xzibit_header);
+  priv->bottom_channel = 0;
+  priv->bottom_length = 0;
+  priv->bottom_buffer = NULL;
 
   if (g_getenv("XZIBIT_TEST_AS_CLIENT"))
     {
@@ -237,19 +274,25 @@ start (MutterPlugin *plugin)
        * created by the other process running
        * on the same machine.
        */
-      g_print ("Here we would connect as a client.\n");
+      g_print ("[%s] Here we would connect as a client.\n",
+               gdk_display_get_name (gdk_display_get_default()));
+      priv->test_as_client = TRUE;
+      priv->listening_fd = -1;
     }
   else
     {
       struct sockaddr_in addr;
+      int one = 1;
 
-      g_print ("Here we listen as a server as usual.\n");
+      g_print ("[%s] Here we listen as a server as usual.\n",
+               gdk_display_get_name (gdk_display_get_default()));
+
+      priv->test_as_client = FALSE;
 
       memset (&addr, 0, sizeof (addr));
       addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl (INADDR_ANY);
       addr.sin_port = htons (XZIBIT_PORT);
-
-      /* FIXME: some decent error checking would be good */
 
       priv->listening_fd = socket (PF_INET,
                                    SOCK_STREAM,
@@ -257,15 +300,35 @@ start (MutterPlugin *plugin)
 
       if (priv->listening_fd < 0)
         {
+          perror ("xzibit");
           g_error ("Could not create a socket; things will break\n");
         }
 
-      bind (priv->listening_fd,
-            (struct sockaddr*) &addr,
-            sizeof(struct sockaddr_in));
+      if (setsockopt (priv->listening_fd,
+                      SOL_SOCKET,
+                      SO_REUSEADDR,
+                      &one, sizeof(one))<0)
+        {
+          perror ("xzibit");
+          g_error ("Could not set socket options.");
+        }
 
-      listen (priv->listening_fd,
-              4096);
+
+      if (bind (priv->listening_fd,
+                (struct sockaddr*) &addr,
+                sizeof(struct sockaddr_in))<0)
+        {
+          perror ("xzibit");
+          g_error ("Could not bind socket.");
+        }
+
+      if (listen (priv->listening_fd,
+                  4096)<0)
+        {
+          perror ("xzibit");
+          g_error ("Could not listen on socket.");
+        }
+        
 
       channel = g_io_channel_unix_new (priv->listening_fd);
 
@@ -274,17 +337,14 @@ start (MutterPlugin *plugin)
                       accept_connections,
                       plugin);
 
-#if 0
-{
-          g_io_add_watch (channel,
-                          G_IO_IN,
-                          check_downwards,
-                          plugin);
-        }
-#endif
+      g_print ("Socket %d is now LISTENING\n",
+               priv->listening_fd);
     }
 
-  priv->receiving_fd = -1; /* not currently open */
+  priv->server_fd = -1; /* not currently open */
+  priv->top_fd = -1;
+  priv->bottom_fd = -1;
+  priv->client_fd = -1;
 
   priv->remote_xzibit_id_to_xid =
     g_hash_table_new_full (g_int_hash,
@@ -508,10 +568,13 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
   priv->info.description = "Allows you to share windows across IM.";
 }
 
+/**
+ *
+ */
 static void
-send_to_bus (MutterPlugin *plugin,
-             int channel,
-             ...)
+send_from_bottom (MutterPlugin *plugin,
+                  int channel,
+                  ...)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   va_list ap;
@@ -541,20 +604,20 @@ send_to_bus (MutterPlugin *plugin,
   buffer[2] = count % 256;
   buffer[3] = count / 256;
 
-  g_warning ("Sending buffer of length %d\n",
-             count);
+  debug_flow ("sent normal from BOTTOM towards TOP",
+              buffer, count);
 
-  write (priv->upwards_fd, buffer, count+4);
-  fsync (priv->upwards_fd);
+  write (priv->bottom_fd, buffer, count+4);
+  fsync (priv->bottom_fd);
 
   g_free (buffer);
 }
 
 static void
-send_buffer_to_bus (MutterPlugin *plugin,
-                    int channel,
-                    unsigned char *buffer,
-                    int length)
+send_buffer_from_bottom (MutterPlugin *plugin,
+                         int channel,
+                         unsigned char *buffer,
+                         int length)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   char header_buffer[4];
@@ -562,24 +625,25 @@ send_buffer_to_bus (MutterPlugin *plugin,
   if (length==-1)
     length = strlen (buffer);
 
-  g_warning ("Sending buffer of length %d to %x\n", length, channel);
+  debug_flow ("sent buffer from BOTTOM towards TOP",
+              buffer, length);
 
   header_buffer[0] = channel % 256;
   header_buffer[1] = channel / 256;
   header_buffer[2] = length % 256;
   header_buffer[3] = length / 256;
 
-  write (priv->upwards_fd, header_buffer, 4);
-  write (priv->upwards_fd, buffer, length);  
-  fsync (priv->upwards_fd);
+  write (priv->bottom_fd, header_buffer, 4);
+  write (priv->bottom_fd, buffer, length);  
+  fsync (priv->bottom_fd);
 }
 
 static void
-send_metadata_to_bus (MutterPlugin *plugin,
-                      int xzibit_id,
-                      int metadata_type,
-                      char *metadata,
-                      int metadata_length)
+send_metadata_from_bottom (MutterPlugin *plugin,
+                           int xzibit_id,
+                           int metadata_type,
+                           char *metadata,
+                           int metadata_length)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   char preamble[9];
@@ -587,7 +651,8 @@ send_metadata_to_bus (MutterPlugin *plugin,
   if (metadata_length==-1)
     metadata_length = strlen (metadata);
 
-  g_warning ("Sending metadata of length %d\n", metadata_length+5);
+  debug_flow ("sent metadata from BOTTOM towards TOP",
+              metadata, metadata_length);
 
   preamble[0] = 0; /* channel 0, always */
   preamble[1] = 0;
@@ -599,11 +664,11 @@ send_metadata_to_bus (MutterPlugin *plugin,
   preamble[7] = metadata_type % 256;
   preamble[8] = metadata_type / 256;
 
-  write (priv->upwards_fd, preamble,
+  write (priv->bottom_fd, preamble,
          sizeof(preamble));
-  write (priv->upwards_fd, metadata,
+  write (priv->bottom_fd, metadata,
          metadata_length);  
-  fsync (priv->upwards_fd);
+  fsync (priv->bottom_fd);
 }
 
 typedef struct {
@@ -612,21 +677,22 @@ typedef struct {
 } ForwardRFBAcrossTubesData;
 
 static gboolean
-forward_rfb_across_tubes (GIOChannel *source,
-                          GIOCondition condition,
-                          gpointer data)
+copy_client_to_bottom (GIOChannel *source,
+                       GIOCondition condition,
+                       gpointer data)
 {
   ForwardRFBAcrossTubesData *forward_data =
     (ForwardRFBAcrossTubesData*) data;
   char buffer[1024];
   int count;
 
-  g_warning ("Passing down stuff on channel %x\n", forward_data->channel);
-
   count = recv (g_io_channel_unix_get_fd (source),
                 buffer,
                 sizeof(buffer),
                 MSG_DONTWAIT);
+
+  debug_flow ("forwarded from CLIENT to BOTTOM",
+              buffer, count);
 
   if (count<0)
     {
@@ -636,10 +702,10 @@ forward_rfb_across_tubes (GIOChannel *source,
       g_error ("xzibit bus has died; can't really carry on");
     }
 
-  send_buffer_to_bus (forward_data->plugin,
-                      forward_data->channel,
-                      buffer,
-                      count);
+  send_buffer_from_bottom (forward_data->plugin,
+                           forward_data->channel,
+                           buffer,
+                           count);
 }
 
 static void
@@ -649,7 +715,6 @@ share_window (Display *dpy,
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GError *error = NULL;
   unsigned char message[11];
-  int fd;
   Atom actual_type;
   int actual_format;
   unsigned long n_items, bytes_after;
@@ -664,34 +729,88 @@ share_window (Display *dpy,
            gdk_display_get_name (gdk_display_get_default()),
            (int) window
            );
-  fd = vnc_fd (window);
 
-  if (fd==-1)
+  /*
+   * FIXME: This will obviously need to be
+   * a hash table to support sharing
+   * multiple windows.
+   */
+  priv->client_fd = vnc_fd (window);
+
+  if (priv->client_fd==-1)
     {
       /* Not yet opened: open it */
       vnc_start (window);
-      fd = vnc_fd (window);
+      priv->client_fd = vnc_fd (window);
+
+      g_print ("Created client FD.\n");
+    }
+
+  /* make sure we have the bottom connection */
+
+  /* in real life, here we would connect over Tubes.
+     instead, we connect to the other test instance.
+  */
+
+  if (priv->bottom_fd==-1)
+    {
+      struct sockaddr_in addr;
+      GIOChannel *channel;
+
+      g_print ("Connecting to port...\n");
+
+      memset (&addr, 0, sizeof (addr));
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons (XZIBIT_PORT);
+      addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+
+      priv->bottom_fd = socket (PF_INET,
+                                SOCK_STREAM,
+                                IPPROTO_TCP);
+
+      if (priv->bottom_fd < 0)
+        {
+          g_error ("Could not create a socket; things will break\n");
+        }
+      
+      if (connect (priv->bottom_fd,
+                   (struct sockaddr*) &addr,
+                   sizeof(addr))!=0)
+        {
+          perror ("xzibit");
+
+          g_error ("Could not talk to the other xzibit process.\n");
+        }
+
+      channel = g_io_channel_unix_new (priv->bottom_fd);
+
+      g_io_add_watch (channel,
+                      G_IO_IN,
+                      copy_bottom_to_client,
+                      plugin);
+      
+      g_print ("Okay, we should have a connection now\n");
     }
 
   /* and tell our counterpart about it */
 
-  send_to_bus(plugin,
-              0, /* control channel */
-              1, /* opcode */
-              127, 0, 0, 1, /* IP address (ignored) */
-              xzibit_id % 256,
-              xzibit_id / 256,
-              -1);
+  send_from_bottom (plugin,
+                    0, /* control channel */
+                    1, /* opcode */
+                    127, 0, 0, 1, /* IP address (ignored) */
+                    xzibit_id % 256,
+                    xzibit_id / 256,
+                    -1);
 
   /* If we receive data from VNC, send it on. */
 
   forward_data = g_malloc(sizeof(ForwardRFBAcrossTubesData));
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
-  channel = g_io_channel_unix_new (fd);
+  channel = g_io_channel_unix_new (priv->client_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
-                  forward_rfb_across_tubes,
+                  copy_client_to_bottom,
                   forward_data);
 
   /* also supply metadata */
@@ -756,17 +875,17 @@ share_window (Display *dpy,
              name_of_window,
              type_of_window);
 
-  send_metadata_to_bus (plugin,
-                        xzibit_id,
-                        XZIBIT_METADATA_NAME,
-                        name_of_window,
-                        -1);
+  send_metadata_from_bottom (plugin,
+                             xzibit_id,
+                             XZIBIT_METADATA_NAME,
+                             name_of_window,
+                             -1);
 
-  send_metadata_to_bus (plugin,
-                        xzibit_id,
-                        XZIBIT_METADATA_TYPE,
-                        type_of_window,
-                        1);
+  send_metadata_from_bottom (plugin,
+                             xzibit_id,
+                             XZIBIT_METADATA_TYPE,
+                             type_of_window,
+                             1);
 
   /* we don't supply icons yet. */
 
@@ -844,52 +963,8 @@ set_sharing_state (Display *dpy,
     }
 }
 
-static void
-handle_message_from_bus (MutterPlugin *plugin,
-                         unsigned char *buffer,
-                         int size)
-{
-  int opcode;
-
-  if (size==0)
-    {
-      return;
-    }
-
-  opcode = buffer[0];
-
-  switch (opcode)
-    {
-    case 1: /* OPEN */
-      {
-        guint32 *data = g_malloc(sizeof(guint32)*2);
-
-        /* xzibit ID is currently the same as port number */
-        data[0] = buffer[6]<<8 | buffer[5];
-        data[1] = data[0];
-
-        g_timeout_add (3000,
-                       receive_window,
-                       data);
-      }
-      break;
-
-    case 3: /* SET */
-      {
-        apply_metadata(plugin,
-                       buffer+1,
-                       size-1);
-      }
-      break;
-
-    default:
-      g_warning ("Unknown message type: %d\n", opcode);
-    }
-
-}
-
 static gboolean
-check_for_rfb_replies (GIOChannel *source,
+copy_server_to_top (GIOChannel *source,
                        GIOCondition condition,
                        gpointer data)
 {
@@ -905,7 +980,7 @@ check_for_rfb_replies (GIOChannel *source,
     {
       perror ("xzibit");
       /* FIXME: something more sensible than this */
-      g_error ("rfb-xzibit-client seems to have died");
+      g_error ("xzibit-rfb-client seems to have died");
     }
 
   if (count==0)
@@ -913,18 +988,18 @@ check_for_rfb_replies (GIOChannel *source,
       return;
     }
 
-  g_print ("Passing %d bytes on upstream\n", count);
+  debug_flow ("forwarding from SERVER to TOP", buffer, count);
 
   /* FIXME: check result */
-  write (priv->upwards_fd,
+  write (priv->top_fd,
          buffer,
          count);
 }
 
 static gboolean
-check_downwards (GIOChannel *source,
-                 GIOCondition condition,
-                 gpointer data)
+copy_top_to_server (GIOChannel *source,
+                       GIOCondition condition,
+                       gpointer data)
 {
   MutterPlugin *plugin = (MutterPlugin*) data;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
@@ -933,16 +1008,13 @@ check_downwards (GIOChannel *source,
   int i;
   int q;
 
-  g_print ("Data received DOWNWARDS.\n");
-
-  if (priv->receiving_fd == -1)
+  if (priv->server_fd == -1)
     {
       /* No remote client?  Make one. */
 
       char *argvl[4];
       int sockets[2];
       char *fd_as_string;
-      char header[] = "Xz 000.001\r\n";
       GIOChannel *channel;
 
       socketpair (AF_LOCAL,
@@ -950,11 +1022,11 @@ check_downwards (GIOChannel *source,
                   0,
                   sockets);
 
-      priv->receiving_fd = sockets[0];
-      channel = g_io_channel_unix_new (priv->receiving_fd);
+      priv->server_fd = sockets[0];
+      channel = g_io_channel_unix_new (priv->server_fd);
       g_io_add_watch (channel,
                       G_IO_IN,
-                      check_for_rfb_replies,
+                      copy_server_to_top,
                       plugin);
 
       fd_as_string = g_strdup_printf ("%d",
@@ -981,16 +1053,9 @@ check_downwards (GIOChannel *source,
                      );
 
       g_free (fd_as_string);
-
-      g_print ("[%s] And sending the header now.\n",
-               gdk_display_get_name (gdk_display_get_default()));
-
-      write (priv->receiving_fd, header,
-             sizeof(header)-1 /* no trailing null */);
-      fsync (priv->receiving_fd);
     }
 
-  count = read (priv->upwards_fd,
+  count = read (priv->top_fd,
                 buffer,
                 sizeof(buffer));
 
@@ -1007,22 +1072,22 @@ check_downwards (GIOChannel *source,
       g_error ("xzibit bus has died; can't really carry on");
     }
 
+  debug_flow ("received at TOP", buffer, count);
+
   /* now, if we have an xzibit-rfb-client,
    * write the data out to it.
    */
-  if (priv->receiving_fd != -1)
+  if (priv->server_fd != -1)
     {
-      int i;
-      g_print ("[%s]: Sending %d bytes downstream to FD %d -",
-               gdk_display_get_name (gdk_display_get_default()),
-               count, priv->receiving_fd);
-      for (i=0; i<count; i++) {
-        g_print (" %02x", buffer[i]);
-      }
-      g_print("\n");
-      write (priv->receiving_fd,
+      debug_flow ("sent to x-r-c", buffer, count);
+
+      write (priv->server_fd,
              buffer,
              count);
+    }
+  else
+    {
+      g_error ("no server to talk to!");
     }
 
   return TRUE;
@@ -1039,19 +1104,64 @@ accept_connections (GIOChannel *source,
 
   g_print ("Connection on our socket.\n");
 
-  priv->upwards_fd = accept (priv->socket_fd, NULL, NULL);
+  if (priv->top_fd != -1)
+    {
+      /* FIXME: consider what we should
+         really do in this case */
+      g_error ("multiple connections; can't deal yet");
+    }
 
-  channel = g_io_channel_unix_new (priv->upwards_fd);
+  priv->top_fd = accept (priv->listening_fd, NULL, NULL);
+
+  debug_flow ("sending header",
+              xzibit_header,
+              sizeof(xzibit_header)-1);
+  write (priv->top_fd,
+         xzibit_header,
+         sizeof(xzibit_header)-1 /* no trailing null */);
+  fsync (priv->top_fd);
+
+  channel = g_io_channel_unix_new (priv->top_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
-                  check_upwards,
+                  copy_top_to_server,
                   plugin);
 }
 
+static void
+handle_message_to_client (MutterPlugin *plugin,
+                          int channel,
+                          char *buffer,
+                          int length)
+{
+  MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  int fd;
+
+  if (channel==0)
+    {
+      g_warning ("Possibly a problem: don't know how to deal with ch0 on client messages\n");
+      return;
+    }
+
+  g_print ("This is a message for channel %d\n", channel);
+  /*
+   * FIXME: Look it up in a hash table
+   */
+  fd = priv->client_fd;
+
+  g_print ("Spidey-sense tells us the FD is %d\n", fd);
+
+  /* FIXME: error checking; it could run short */
+
+  debug_flow ("sent from TOP to CLIENT",
+              buffer, length);
+  write (fd, buffer, length);
+}
+
 static gboolean
-check_upwards (GIOChannel *source,
-                 GIOCondition condition,
-                 gpointer data)
+copy_bottom_to_client (GIOChannel *source,
+                       GIOCondition condition,
+                       gpointer data)
 {
   MutterPlugin *plugin = (MutterPlugin*) data;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
@@ -1059,16 +1169,20 @@ check_upwards (GIOChannel *source,
   int count, i;
   Window *xid;
   
-  count = read (priv->upwards_fd,
+  count = read (priv->bottom_fd,
                 buffer,
                 sizeof(buffer));
-  g_print ("[%s] %d bytes of data received UPWARDS.\n",
-           gdk_display_get_name (gdk_display_get_default()),
-           count);
+
+  if (count<0)
+    {
+      perror ("xzibit");
+      g_error ("Something downstream died.");
+    }
+
+  debug_flow ("received at BOTTOM from TOP", buffer, count);
   
   for (i=0; i<count; i++)
     {
-
       if (count < 0)
         {
           perror ("xzibit");
@@ -1078,35 +1192,63 @@ check_upwards (GIOChannel *source,
 
       if (count==0)
         {
-          return /* TRUE? */;
+          return /* FIXME: TRUE? */;
         }
 
-      switch (priv->upwards_stage)
+      switch (priv->bottom_stage)
         {
         case -4:
-          priv->upwards_channel = buffer[i];
+          priv->bottom_channel = buffer[i];
           break;
 
         case -3:
-          priv->upwards_channel |= buffer[i] * 256;
+          priv->bottom_channel |= buffer[i] * 256;
           break;
 
         case -2:
-          priv->upwards_length = buffer[i];
+          priv->bottom_length = buffer[i];
           break;
 
         case -1:
-          priv->upwards_length |= buffer[i] * 256;
+          priv->bottom_length |= buffer[i] * 256;
           g_print ("Channel is %d, length is %d",
-                   priv->upwards_channel,
-                   priv->upwards_length);
-          g_error ("STOP");
+                   priv->bottom_channel,
+                   priv->bottom_length);
+          priv->bottom_buffer = g_malloc (priv->bottom_length);
           break;
+
+        default:
+          if (priv->bottom_stage < 0)
+            {
+              /* still reading the header */
+              if (xzibit_header[priv->bottom_stage+
+                                sizeof(xzibit_header)+3]!=
+                  buffer[i])
+                {
+                  g_error ("Connected to something that isn't xzibit");
+                }
+            }
+          else
+            {
+              priv->bottom_buffer[priv->bottom_stage] =
+                buffer[i];
+
+              if (priv->bottom_stage==priv->bottom_length-1)
+                {
+                  handle_message_to_client (plugin,
+                                            priv->bottom_channel,
+                                            priv->bottom_buffer,
+                                            priv->bottom_length);
+                  
+                  /* and reset */
+                  g_free (priv->bottom_buffer);
+                  priv->bottom_stage = -5;
+                }
+            }
         }
 
-      priv->upwards_stage++;
+      priv->bottom_stage++;
     }
-
 
 #if 0
   xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
@@ -1171,7 +1313,7 @@ related_to_shared_window (Display *dpy,
   XFree (property);
 
   g_warning ("%s relation of %x is %x",
-             relationship, window,
+             relationship, (int)window,
              parent);
 
   if (XGetWindowProperty(dpy,

@@ -19,7 +19,6 @@ int following_fd = -1;
 
 typedef enum {
   STATE_START,
-  STATE_SEEN_HEADER,
   STATE_SEEN_CHANNEL,
   STATE_SEEN_LENGTH,
 } FdReadState;
@@ -243,6 +242,8 @@ handle_xzibit_message (int channel,
 		       unsigned char *buffer,
 		       unsigned int length)
 {
+  g_print ("x-r-c: Handling xzibit message of %d bytes on channel %d\n",
+	   length, channel);
   if (channel==0)
     {
       /* Control channel. */
@@ -305,8 +306,6 @@ check_for_fd_input (GIOChannel *source,
   char buffer[1024];
   int fd = g_io_channel_unix_get_fd (source);
   int count, i;
-  char want_header[] = "Xz 000.001\r\n";
-
   count = read (fd, &buffer, sizeof(buffer));
 
   if (count<0) {
@@ -316,27 +315,24 @@ check_for_fd_input (GIOChannel *source,
   if (count==0) {
     return;
   }
+
+  /*
+   * We don't have to deal with the header.
+   * That's done for us, upstream.
+   */
   
   for (i=0; i<count; i++)
     {
+
+#if 0
+      g_print ("(%d/%d) Received %02x in state %d\n",
+	       i+1, count,
+	       buffer[i], fd_read_state);
+#endif
+
       switch (fd_read_state)
 	{
 	case STATE_START:
-	  if (want_header[fd_read_through] != buffer[i])
-	    {
-	      g_error ("Header not received");
-	    }
-
-	  fd_read_through++;
-
-	  if (want_header[fd_read_through]==0)
-	    {
-	      fd_read_through = 0;
-	      fd_read_state = STATE_SEEN_HEADER;
-	    }
-	  break;
-
-	case STATE_SEEN_HEADER:
 	  /* Seen header; read channel */
 	  switch (fd_read_through)
 	    {
@@ -382,7 +378,7 @@ check_for_fd_input (GIOChannel *source,
 				     fd_read_length);
 	      g_free (fd_read_buffer);
 	      fd_read_through = 0;
-	      fd_read_state = STATE_SEEN_HEADER;
+	      fd_read_state = STATE_START;
 	    }
 	}
       
@@ -400,7 +396,7 @@ main (int argc, char **argv)
 
   gtk_init (&argc, &argv);
 
-  g_warning ("RFB client starting...\n");
+  g_print ("RFB client starting...\n");
 
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
