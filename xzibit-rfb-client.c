@@ -303,7 +303,7 @@ check_for_fd_input (GIOChannel *source,
 		    GIOCondition condition,
 		    gpointer data)
 {
-  char buffer[1024];
+  unsigned char buffer[1024];
   int fd = g_io_channel_unix_get_fd (source);
   int count, i;
   count = read (fd, &buffer, sizeof(buffer));
@@ -360,6 +360,7 @@ check_for_fd_input (GIOChannel *source,
 
 	    case 1:
 	      fd_read_length |= buffer[i]*256;
+	      g_print ("Read length is %d\n", fd_read_length);
 	      fd_read_buffer = g_malloc (fd_read_length);
 	      fd_read_through = 0;
 	      fd_read_state = STATE_SEEN_LENGTH;

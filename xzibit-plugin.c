@@ -229,7 +229,7 @@ struct _MutterXzibitPluginPrivate
 
 static void
 debug_flow (const char *place,
-            char *buffer, int count)
+            unsigned char *buffer, int count)
 {
   int i;
 
@@ -245,11 +245,14 @@ debug_flow (const char *place,
   g_print ("\n");
 }
 
-/* leave it turned off for now
+/* leave it turned off for now */
+#if 0
 #define DEBUG_FLOW(place, buffer, count) \
   debug_flow (place, buffer, count);
- */
+#else
 #define DEBUG_FLOW(place, buffer, count) ;
+ */
+#endif
 
 static void
 mutter_xzibit_plugin_dispose (GObject *object)
