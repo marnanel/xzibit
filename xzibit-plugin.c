@@ -107,10 +107,14 @@ MUTTER_PLUGIN_DECLARE(MutterXzibitPlugin, mutter_xzibit_plugin);
  */
 struct _MutterXzibitPluginPrivate
 {
+  /**
+   * Parent data.
+   */
   MutterPluginInfo       info;
 
   /**
    * Atom values.
+   * FIXME: gdk can do this for us, you know.
    */
   int xzibit_share_atom;
   int wm_transient_for_atom;
@@ -129,17 +133,42 @@ struct _MutterXzibitPluginPrivate
    *                             ()=bottom_fd
    *                             ||
    *            [libvncserver]---()=client_fd
-   *
+   */
+
+  /**
+   * File descriptor connected to xzibit-rfb-client.
    * I know it's a bit confusing that "server" links to
    * xzibit-rfb-*client*.  x-r-c is an RFB client, but
    * provides the Xzibit service.
    */
-
   int server_fd;
+
+  /**
+   * File descriptor representing a connection on the
+   * listening socket.
+   */
   int top_fd;
+
+  /**
+   * File descriptor representing the listening socket
+   * itself.
+   */
   int listening_fd;
+
+  /**
+   * File descriptor connected remotely to the
+   * listening socket.
+   */
   int bottom_fd;
-  int client_fd; /* FIXME: it may not be necessary to store this */
+
+  /**
+   * File descriptor connected to libvncserver.
+   * FIXME: it may not be necessary to store this
+   *        (only its io channel).
+   * FIXME: there need to be "n" of these, like in
+   *        a hash table or something.
+   */
+  int client_fd;
 
   /**
    * Set if we're running under a test harness,
@@ -150,17 +179,36 @@ struct _MutterXzibitPluginPrivate
   gboolean test_as_client;
 
   /**
+   * X display we're using, if known.
+   * (We store this as soon as we know it,
+   * but it'll be NULL if we haven't been
+   * told yet.)
    */
-
-  int bus_count;
-  int bus_reading_size;
-  long bus_size;
-  unsigned char *bus_buffer;
   Display *dpy;
 
+  /**
+   * State of the data received at bottom_fd.
+   * Below -4: receiving original header.
+   * -4, -3: receiving channel number.
+   * -2, -1: receiving block length.
+   * Non-negative: "n" through receiving the block.
+   */
   int bottom_stage;
+  /**
+   * Target channel of the block currently being
+   * received from bottom_fd, if known.
+   */
   int bottom_channel;
+  /**
+   * Length of the block currently being
+   * received from bottom_fd, if known.
+   */
   int bottom_length;
+  /**
+   * Dynamic buffer to hold the block currently
+   * being received from bottom_fd; null if we're
+   * not currently receiving a block.
+   */
   unsigned char *bottom_buffer;
 
   /**
@@ -168,11 +216,13 @@ struct _MutterXzibitPluginPrivate
    * server.  FIXME: Note that this assumes
    * that there's only one remote xzibit,
    * which we should reconsider.
+   * FIXME: not in use and should be.
    */
   GHashTable *remote_xzibit_id_to_xid;
   /**
    * Lists of metadata we need to set
    * when a given window finally maps
+   * FIXME: move this to xzibit-rfb-client.
    */
   GHashTable *postponed_metadata;
 };
@@ -262,9 +312,6 @@ start (MutterPlugin *plugin)
   priv->cardinal_atom = 0;
 
   priv->dpy = NULL;
-  priv->bus_count = 0;
-  priv->bus_reading_size = 1;
-  priv->bus_size = 0;
 
   priv->bottom_stage = -3 - sizeof(xzibit_header);
   priv->bottom_channel = 0;
