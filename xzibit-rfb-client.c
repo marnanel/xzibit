@@ -238,6 +238,54 @@ Also:
 }
 
 static void
+apply_metadata_now (XzibitReceivedWindow *target,
+		    int metadata_id,
+		    unsigned char *buffer,
+		    int length)
+{
+  /* FIXME */
+  g_print ("Applying metadata type %d.\n",
+	   metadata_id);
+}
+
+static void
+apply_metadata (int metadata_id,
+		int xzibit_id,
+		unsigned char *buffer,
+		int length)
+{
+  XzibitReceivedWindow *received;
+
+  g_print ("Setting metadata %d on window %d; %d bytes\n",
+	   metadata_id, xzibit_id, length);
+
+  received = g_hash_table_lookup (received_windows,
+				  &xzibit_id);
+
+  if (received)
+    {
+      apply_metadata_now (received,
+			  metadata_id,
+			  buffer,
+			  length);
+    }
+  else
+    {
+      /* FIXME: it is possible we can get away with
+       * not implementing this, since when we get here
+       * the window will(?) always have been mapped;
+       * we had to do this in the old system because
+       * the mutter plugin handled metadata and x-r-c
+       * might not have loaded by the time the metadata
+       * was considered.
+       */
+      g_print ("(This window is not yet open; postponing it)\n");
+
+      g_error ("Postponed metadata not yet implemented");
+    }
+}
+
+static void
 handle_xzibit_message (int channel,
 		       unsigned char *buffer,
 		       unsigned int length)
@@ -273,6 +321,17 @@ handle_xzibit_message (int channel,
 
 	case 3: /* Set */
 	  g_print ("Set; ignored for now\n");
+	  if (length<4)
+	    {
+	      g_warning ("Attempt to set metadata with short buffer");
+	      return;
+	    }
+
+	  apply_metadata (buffer[3]|buffer[4]*256,
+			  buffer[1]|buffer[2]*256,
+			  buffer+4,
+			  length-4);
+		   
 	  break;
 
 	case 4: /* Wall */
