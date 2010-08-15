@@ -5,11 +5,17 @@
 
 The Xzibit protocol is unidirectional; the receiver sends no acknowledgement
 or response.  It is expected that the protocol's streams will be paired,
-one in each direction, as in TCP.
+one in each direction, as in TCP.  Certain kinds of messages make more sense
+to pass towards the server side or the client side, as seen by TCP, but
+this is not directly represented in the Xzibit protocol.
+
+However, it is expected that the TCP connection will be initiated by the
+side which wishes to share a window.  Note that this means that "server"
+and "client" are backwards from the VNC understanding.
 
 Every window shared across a connection has an "Xzibit ID", a unique number
-which fits in a non-zero unsigned sixteen-bit word.  This may be the same
-as the X ID of the realised window on one end, but need not be.
+which fits in a non-zero unsigned sixteen-bit word.  This value is
+unique and understood in both directions.
 
 Where an endpoint may communicate with multiple other endpoints, it
 may need to identify a window with a combination of its Xzibit ID
@@ -31,13 +37,16 @@ or in ASCII hex
 
 The Xzibit protocol multiplexes one or more channels.  Each channel is
 identified by an unsigned sixteen-bit word.  The channels are of
-two kinds:
+several kinds:
 
   * a single control channel, identified as zero, which is always open.
   This uses a custom protocol described below.
 
   * zero or more RFB channels, identified by the Xzibit IDs of the
   windows they represent.  These use the RFB protocol, as used by VNC.
+
+  * zero or more audio channels; these will be specified in greater
+  detail in a later revision of this specification.
 
 The protocol is divided into blocks.  After the header is sent, the
 channel is ready to send its first block.  A block consists of a
@@ -76,6 +85,30 @@ The defined opcodes are:
             UTF-8-encoded text which should be displayed to
             the remote user.  The values of the error code are ill-defined
             at present.
+ 0x05 RESPAWN, followed by any four bytes.  If a subsequent connection presents
+            these same four bytes as an argument to RESPAWN, the xzibit
+            instance at the other end MAY consider the subsequent connection
+            to be a continuation of the first one, and MAY re-send all
+            the shared windows.
+ 0x06 AVATAR, followed by a PNG-encoded image.  The image is to be used as
+            an icon to represent the sending xzibit at the other end.
+            (You may find such an image at ~/.face under GNOME.  Beware that
+            it may not necessarily be PNG-encoded.)
+            If this connection already has an avatar, the old avatar is
+            discarded.
+ 0x07 LISTEN, followed by the xzibit ID of a currently open channel "a",
+            followed by the xzibit ID of a currently closed channel "b".
+            The channel "b" is opened.  Its contents are an audio stream
+            representing sounds from the window "a".  If "a" already has
+            an associated audio stream, the results are undefined.
+ 0x08 MOUSE, followed by the xzibit ID of a currently open window,
+            followed by two unsigned sixteen-bit words, an X and Y coordinate
+            respectively, with respect to the top left corner of the window.
+            This means that the user on the sending end has pointed at
+            the given position, but not necessarily clicked.  Of course,
+            this information may also be sent over RFB, but only in one
+            direction.  Such information should be treated equally whether
+            it was received using MOUSE or via RFB.
 
 = METADATA =
 
