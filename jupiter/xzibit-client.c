@@ -83,9 +83,6 @@ received_from_xzibit (GIOChannel *source,
 
   for (i=0; i<count; i++)
     {
-      g_print ("Received %02x in state %d\n", buffer[i],
-               client->state);
-      
       switch (client->state)
 	{
         case -4:

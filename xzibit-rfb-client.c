@@ -47,16 +47,11 @@ typedef struct {
    * The xzibit ID of this window.
    */
   int id;
-  /**
-   * Any metadata which we need to set
-   * when it maps.  If it's mapped,
-   * this should be NULL.
-   */
-  GSList *postponements;
 
 } XzibitReceivedWindow;
 
 GHashTable *received_windows = NULL;
+GHashTable *postponed_metadata = NULL;
 
 /****************************************************************
  * Options.
@@ -184,6 +179,71 @@ handle_audio_message (int channel,
 }
 
 static void
+apply_metadata_now (XzibitReceivedWindow *target,
+		    int metadata_id,
+		    unsigned char *buffer,
+		    int length)
+{
+  /* FIXME */
+  g_print ("Applying metadata type %d.\n",
+	   metadata_id);
+}
+
+typedef struct _PostponedMetadata {
+  int id;
+  gsize length;
+  char *content;
+} PostponedMetadata;
+
+static gboolean
+exposed_window (GtkWidget *widget,
+		GdkEventExpose *event,
+		gpointer data)
+{
+  GSList *postponements, *cursor;
+  int xzibit_id = GPOINTER_TO_INT (data);
+
+  if (!postponed_metadata)
+    {
+      return FALSE;
+    }
+
+  postponements = g_hash_table_lookup (postponed_metadata,
+				       GINT_TO_POINTER (xzibit_id));
+
+  if (!postponements)
+    {
+      return FALSE;
+    }
+
+  g_hash_table_remove (postponed_metadata,
+		       GINT_TO_POINTER (xzibit_id));
+
+  cursor = postponements;
+
+  while (cursor)
+    {
+      PostponedMetadata *metadata = cursor->data;
+      XzibitReceivedWindow *received =
+	g_hash_table_lookup (received_windows,
+		     &xzibit_id);
+
+      apply_metadata_now (received,
+			  metadata->id,
+			  metadata->content,
+			  metadata->length);
+      
+      g_free (metadata->content);
+      g_free (metadata);
+      cursor = cursor->next;
+    }
+
+  g_slist_free (postponements);
+
+  return FALSE;
+}
+
+static void
 open_new_channel (int channel_id)
 {
   XzibitReceivedWindow *received;
@@ -266,34 +326,12 @@ open_new_channel (int channel_id)
 		  check_for_rfb_replies,
 		  received);
 
-  /* FIXME: attach to the expose signal
-     for the new window so that we can
-     add the postponed properties when
-     it maps.
+  g_signal_connect (vnc,
+		    "expose-event",
+		    G_CALLBACK(exposed_window),
+		    GINT_TO_POINTER (channel_id));
 
-Also:
-  set_window_remote (window);
-  set_window_id (window, remote_server, id);
-
-   */
 }
-
-static void
-apply_metadata_now (XzibitReceivedWindow *target,
-		    int metadata_id,
-		    unsigned char *buffer,
-		    int length)
-{
-  /* FIXME */
-  g_print ("Applying metadata type %d.\n",
-	   metadata_id);
-}
-
-typedef struct _PostponedMetadata {
-  int id;
-  gsize length;
-  char *content;
-} PostponedMetadata;
 
 static void
 apply_metadata (int metadata_id,
@@ -320,15 +358,43 @@ apply_metadata (int metadata_id,
     {
       PostponedMetadata *postponed =
 	g_malloc (sizeof (PostponedMetadata));
-
-      g_print ("(This window is not yet open; postponing it)\n");
+      GSList *current;
 
       postponed->id = metadata_id;
       postponed->length = length;
-      postponed->content = buffer;
+      postponed->content = g_memdup (buffer,
+				     length);
 
-      received->postponements = g_slist_prepend (received->postponements,
-						 postponed);
+      if (postponed_metadata==NULL)
+	{
+	  postponed_metadata =
+	    g_hash_table_new_full (g_direct_hash,
+				   g_direct_equal,
+				   NULL,
+				   NULL);
+	}
+
+      current =
+	g_hash_table_lookup (postponed_metadata,
+			     GINT_TO_POINTER (xzibit_id));
+
+      if (current==NULL)
+	{
+	  g_hash_table_insert (postponed_metadata,
+			       GINT_TO_POINTER (xzibit_id),
+			       g_slist_prepend (NULL,
+						postponed));
+	}
+      else
+	{
+	  current = g_slist_prepend (current,
+				    postponed);
+	  
+	  g_hash_table_replace (postponed_metadata,
+				GINT_TO_POINTER (xzibit_id),
+				current);
+	}
+
     }
 }
 
@@ -378,8 +444,8 @@ handle_control_channel_message (int channel,
 	  return;
 	}
       
-      apply_metadata (buffer[3]|buffer[4]*256,
-		      buffer[1]|buffer[2]*256,
+      apply_metadata (buffer[1]|buffer[2]*256,
+		      buffer[3]|buffer[4]*256,
 		      buffer+4,
 		      length-4);
       
