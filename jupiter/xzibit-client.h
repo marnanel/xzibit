@@ -39,6 +39,12 @@ void xzibit_client_send_avatar (XzibitClient *client,
 int xzibit_client_open_channel (XzibitClient *client);
 void xzibit_client_close_channel (XzibitClient *client,
                                   int channel);
+void xzibit_client_set_title (XzibitClient *client,
+                              int channel,
+                              char *title);
+void xzibit_client_set_icon (XzibitClient *client,
+                             int channel,
+                             GdkPixbuf *icon);
 void xzibit_client_send_video (XzibitClient *client,
                                int channel,
                                GdkPixbuf *image);

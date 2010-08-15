@@ -60,6 +60,11 @@ struct _XzibitClient {
 #define COMMAND_LISTEN 7
 #define COMMAND_MOUSE 8
 
+#define METADATA_TRANSIENCY 1
+#define METADATA_TITLE 2
+#define METADATA_TYPE 3
+#define METADATA_ICON 4
+
 static gboolean
 received_from_xzibit (GIOChannel *source,
 		      GIOCondition condition,
@@ -417,4 +422,63 @@ xzibit_client_move_pointer (XzibitClient *client,
 
   g_print ("Mouse pointer now at (%d,%d).\n",
            x, y);
+}
+
+static void
+send_metadata (XzibitClient *client,
+               int channel,
+               int metadata_type,
+               int metadata_length,
+               char *metadata)
+{
+  send_block_header (client,
+                     CONTROL_CHANNEL,
+                     metadata_length + 5);
+
+  send_byte (client, COMMAND_SET);
+  send_word (client, metadata_type);
+  send_word (client, channel);
+
+  write (client->xzibit_fd,
+         metadata,
+         metadata_length);
+}
+
+void
+xzibit_client_set_title (XzibitClient *client,
+                         int channel,
+                         char *title)
+{
+  send_metadata (client,
+                 channel,
+                 METADATA_TITLE,
+                 strlen (title),
+                 title);
+}
+
+void
+xzibit_client_set_icon (XzibitClient *client,
+                        int channel,
+                        GdkPixbuf *icon)
+{
+  GdkPixbuf *resized_icon = gdk_pixbuf_scale_simple (icon,
+                                                     16, 16,
+                                                     GDK_INTERP_BILINEAR);
+  gchar *buffer;
+  gsize buffer_size;
+
+  /* FIXME: error checking */
+  gdk_pixbuf_save_to_buffer (resized_icon,
+                             &buffer,
+                             &buffer_size,
+                             "png",
+                             NULL, NULL);
+
+  send_metadata (client,
+                 channel,
+                 METADATA_ICON,
+                 buffer_size,
+                 buffer);
+
+  g_object_unref (resized_icon);
 }

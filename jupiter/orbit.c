@@ -54,7 +54,10 @@ main(int argc, char **argv)
   planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
 				     NULL);
   channel = xzibit_client_open_channel (xzibit);
+
   xzibit_client_send_video (xzibit, channel, planet);
+  xzibit_client_set_title (xzibit, channel, "Orbit");
+  xzibit_client_set_icon (xzibit, channel, rocket);
 
   g_timeout_add (100,
                  orbit_mouse,

@@ -29,6 +29,8 @@ main(int argc, char **argv)
   channel = xzibit_client_open_channel (xzibit);
 
   xzibit_client_send_video (xzibit, channel, planet);
+  xzibit_client_set_title (xzibit, channel, "Jupiter");
+  xzibit_client_set_icon (xzibit, channel, planet);
 
   g_main_loop_run (gmainloop);
 
