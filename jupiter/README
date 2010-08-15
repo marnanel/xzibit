@@ -1,0 +1,19 @@
+This directory will hold a small app which
+connects to an Xzibit server and plays some
+music.  It's used to test the experimental
+audio support in Xzibit without actually
+using two computers.
+
+Credits:
+
+ * jupiter.wav - excerpt from "The Planets Suite",
+   op.32 iv, "Jupiter, the bringer of jollity".
+   Composer: Gustav Holst.
+   Performed by the Skidmore College Orchestra.
+   Credit: musopen.com.
+   Public domain.
+
+ * jupiter.jpg - image of the planet Jupiter.
+   Composite photo from the Cassini spacecraft.
+   Credit: NASA.
+   Public domain.
