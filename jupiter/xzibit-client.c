@@ -47,6 +47,7 @@ struct _XzibitClient {
   char *buffer;
   GHashTable *vnc_servers;
   GHashTable *vnc_fds;
+  GHashTable *audio_channels;
 };
 
 #define CONTROL_CHANNEL 0
@@ -296,6 +297,12 @@ xzibit_client_new (void)
                            g_free,
                            g_free);
 
+  result->audio_channels =
+    g_hash_table_new_full (g_int_hash,
+                           g_int_equal,
+                           g_free,
+                           g_free);
+
   result->vnc_fds =
     g_hash_table_new_full (g_int_hash,
                            g_int_equal,
@@ -404,6 +411,51 @@ xzibit_client_send_video (XzibitClient *client,
                         0, 0,
                         gdk_pixbuf_get_width (with_alpha),
                         gdk_pixbuf_get_height (with_alpha));
+}
+
+void
+xzibit_client_send_audio (XzibitClient *client,
+                          int channel,
+                          gpointer wave,
+                          gsize length)
+{
+  int *audio_channel;
+
+  audio_channel = g_hash_table_lookup (client->audio_channels,
+                                       &channel);
+
+  if (!audio_channel)
+    {
+      int *key = g_malloc (sizeof (int));
+
+      *key = channel;
+
+      audio_channel = g_malloc (sizeof (int));
+      *audio_channel = ++client->highest_channel;
+
+      g_hash_table_insert (client->audio_channels,
+                           key, audio_channel);
+
+      send_block_header (client,
+                         CONTROL_CHANNEL,
+                         5);
+
+      send_byte (client, COMMAND_LISTEN);
+      send_word (client, channel);
+      send_word (client, *audio_channel);
+
+      g_print ("Created audio channel at %d\n",
+               *audio_channel);
+    }
+
+  send_block_header (client,
+                     *audio_channel,
+                     length);
+
+  write (client->xzibit_fd,
+         wave, length);
+
+  g_print ("Sent %d bytes of audio\n", length);
 }
 
 void

@@ -48,6 +48,10 @@ void xzibit_client_set_icon (XzibitClient *client,
 void xzibit_client_send_video (XzibitClient *client,
                                int channel,
                                GdkPixbuf *image);
+void xzibit_client_send_audio (XzibitClient *client,
+                               int channel,
+                               gpointer wave,
+                               gsize length);
 void xzibit_client_move_pointer (XzibitClient *client,
                                  int channel,
                                  int x,
