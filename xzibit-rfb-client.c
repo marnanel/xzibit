@@ -47,6 +47,13 @@ typedef struct {
    * The xzibit ID of this window.
    */
   int id;
+  /**
+   * Any metadata which we need to set
+   * when it maps.  If it's mapped,
+   * this should be NULL.
+   */
+  GSList *postponements;
+
 } XzibitReceivedWindow;
 
 GHashTable *received_windows = NULL;
@@ -282,6 +289,12 @@ apply_metadata_now (XzibitReceivedWindow *target,
 	   metadata_id);
 }
 
+typedef struct _PostponedMetadata {
+  int id;
+  gsize length;
+  char *content;
+} PostponedMetadata;
+
 static void
 apply_metadata (int metadata_id,
 		int xzibit_id,
@@ -305,20 +318,17 @@ apply_metadata (int metadata_id,
     }
   else
     {
-      /* FIXME: it is possible we can get away with
-       * not implementing this, since when we get here
-       * the window will(?) always have been mapped;
-       * we had to do this in the old system because
-       * the mutter plugin handled metadata and x-r-c
-       * might not have loaded by the time the metadata
-       * was considered.
-       *
-       * UPDATE: I was wrong; some of the test programs
-       * trigger this.  Will implement after all.
-       */
+      PostponedMetadata *postponed =
+	g_malloc (sizeof (PostponedMetadata));
+
       g_print ("(This window is not yet open; postponing it)\n");
 
-      /* g_error ("Postponed metadata not yet implemented"); */
+      postponed->id = metadata_id;
+      postponed->length = length;
+      postponed->content = buffer;
+
+      received->postponements = g_slist_prepend (received->postponements,
+						 postponed);
     }
 }
 
