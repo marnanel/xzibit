@@ -362,7 +362,6 @@ handle_control_channel_message (int channel,
       break;
 
     case 3: /* Set */
-      g_print ("Set; ignored for now\n");
       if (length<4)
 	{
 	  g_warning ("Attempt to set metadata with short buffer");
