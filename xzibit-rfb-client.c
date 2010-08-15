@@ -150,6 +150,24 @@ check_for_rfb_replies (GIOChannel *source,
   write (following_fd, buffer, count);
 }
 
+typedef void (MessageHandler) (int, unsigned char*, unsigned int);
+GHashTable *message_handlers = NULL;
+
+static void
+handle_video_message (int channel,
+		      unsigned char *buffer,
+		      unsigned int length)
+{
+  XzibitReceivedWindow *received =
+    g_hash_table_lookup (received_windows,
+			 &channel);
+      
+  g_print ("We have %d bytes FROM the rfb server\n", length);
+  /* FIXME: error checking; it could run short */
+  write (received->fd,
+	 buffer, length);
+}
+
 static void
 open_new_channel (int channel_id)
 {
@@ -182,14 +200,22 @@ open_new_channel (int channel_id)
 
   received =
     g_malloc (sizeof (XzibitReceivedWindow));
+
   key =
     g_malloc (sizeof (int));
-
   *key = channel_id;
 
   g_hash_table_insert (received_windows,
 		       key,
 		       received);
+
+  key =
+    g_malloc (sizeof (int));
+  *key = channel_id;
+
+  g_hash_table_insert (message_handlers,
+		       key,
+		       handle_video_message);
 
   socketpair (AF_LOCAL,
 	      SOCK_STREAM,
@@ -289,75 +315,82 @@ apply_metadata (int metadata_id,
 }
 
 static void
+handle_control_channel_message (int channel,
+				unsigned char *buffer,
+				unsigned int length)
+{
+  unsigned char opcode;
+
+  if (length==0)
+    /* Empty messages are valid but ignored. */
+    return;
+
+  opcode = buffer[0];
+
+  switch (opcode)
+    {
+    case 1: /* Open */
+      if (length!=7) {
+	g_print ("Open message; bad length (%d)\n",
+		 length);
+	return;
+      }
+      
+      open_new_channel(buffer[5]|buffer[6]*256);
+      break;
+
+    case 2: /* Close */
+      g_print ("Close; ignored for now\n");
+      break;
+
+    case 3: /* Set */
+      g_print ("Set; ignored for now\n");
+      if (length<4)
+	{
+	  g_warning ("Attempt to set metadata with short buffer");
+	  return;
+	}
+      
+      apply_metadata (buffer[3]|buffer[4]*256,
+		      buffer[1]|buffer[2]*256,
+		      buffer+4,
+		      length-4);
+      
+      break;
+
+    case 4: /* Wall */
+      g_print ("Wall; ignored for now\n");
+      break;
+
+    default:
+      g_warning ("Unknown control channel opcode %x\n",
+		 opcode);
+    }
+  
+}
+
+static void
 handle_xzibit_message (int channel,
 		       unsigned char *buffer,
 		       unsigned int length)
 {
+  MessageHandler *handler;
   g_print ("x-r-c: Handling xzibit message of %d bytes on channel %d\n",
 	   length, channel);
-  if (channel==0)
+
+  handler = g_hash_table_lookup (message_handlers,
+				 &channel);
+
+  if (!handler)
     {
-      /* Control channel. */
-      unsigned char opcode;
-
-      if (length==0)
-	/* Empty messages are valid but ignored. */
-	return;
-
-      opcode = buffer[0];
-
-      switch (opcode)
-	{
-	case 1: /* Open */
-	  if (length!=7) {
-	    g_print ("Open message; bad length (%d)\n",
-		     length);
-	    return;
-	  }
-
-	  open_new_channel(buffer[5]|buffer[6]*256);
-	  break;
-
-	case 2: /* Close */
-	  g_print ("Close; ignored for now\n");
-	  break;
-
-	case 3: /* Set */
-	  g_print ("Set; ignored for now\n");
-	  if (length<4)
-	    {
-	      g_warning ("Attempt to set metadata with short buffer");
-	      return;
-	    }
-
-	  apply_metadata (buffer[3]|buffer[4]*256,
-			  buffer[1]|buffer[2]*256,
-			  buffer+4,
-			  length-4);
-		   
-	  break;
-
-	case 4: /* Wall */
-	  g_print ("Wall; ignored for now\n");
-	  break;
-
-	default:
-	  g_warning ("Unknown control channel opcode %x\n",
-		     opcode);
-	}
+      g_warning ("A message was received for channel %d, which is not open.",
+		 channel);
+      return;
     }
-  else
-    {
-      /* One of the RFB channels. */
-      XzibitReceivedWindow *received =
-	g_hash_table_lookup (received_windows,
-			     &channel);
-      
-      g_print ("We have %d bytes FROM the rfb server\n", length);
-      /* FIXME: error checking; it could run short */
-      write (received->fd,
-	     buffer, length);
-    }
+
+  handler (channel,
+	   buffer,
+	   length);
 }
 
 static gboolean
@@ -450,6 +483,30 @@ check_for_fd_input (GIOChannel *source,
   /* FIXME: return value?? */
 }
 
+static void
+prepare_message_handlers (void)
+{
+  int *zero;
+
+  if (message_handlers)
+    return;
+
+  message_handlers =
+    g_hash_table_new_full (g_int_hash,
+			   g_int_equal,
+			   g_free,
+			   g_free);
+
+  g_print ("Installing channel zero\n");
+
+  zero = g_malloc (sizeof (int));
+  *zero = 0;
+
+  g_hash_table_insert (message_handlers,
+		       zero,
+		       handle_control_channel_message);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -460,6 +517,8 @@ main (int argc, char **argv)
   gtk_init (&argc, &argv);
 
   g_print ("RFB client starting...\n");
+
+  prepare_message_handlers ();
 
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
