@@ -344,11 +344,21 @@ handle_control_channel_message (int channel,
 	return;
       }
       
-      open_new_channel(buffer[5]|buffer[6]*256);
+      open_new_channel (buffer[5]|buffer[6]*256);
       break;
 
     case 2: /* Close */
-      g_print ("Close; ignored for now\n");
+      {
+	int victim = buffer[1]|buffer[2]*256;
+
+	if (victim==0)
+	  return; /* that's silly */
+
+	g_hash_table_remove (message_handlers,
+			     &victim);
+
+	/* FIXME: should also kill the associated window */
+      }
       break;
 
     case 3: /* Set */
