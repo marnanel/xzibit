@@ -169,6 +169,14 @@ handle_video_message (int channel,
 }
 
 static void
+handle_audio_message (int channel,
+		      unsigned char *buffer,
+		      unsigned int length)
+{
+  g_print ("We have %d bytes of audio to play.  FIXME.\n", length);
+}
+
+static void
 open_new_channel (int channel_id)
 {
   XzibitReceivedWindow *received;
@@ -360,6 +368,34 @@ handle_control_channel_message (int channel,
 
     case 4: /* Wall */
       g_print ("Wall; ignored for now\n");
+      break;
+
+    case 5: /* Respawn */
+      g_print ("Respawn; ignored for now\n");
+      break;
+      
+    case 6: /* Avatar */
+      g_print ("Avatar; ignored for now\n");
+      break;
+
+    case 7: /* Listen */
+      {
+	/* we don't pay attention to the associated
+	 * video channel at present; we just mix all
+	 * audio channels together */
+
+	int* audio = g_malloc (sizeof (int));
+
+	*audio = buffer[3]|buffer[4]*256;
+
+	g_hash_table_insert (message_handlers,
+			     audio,
+			     handle_audio_message);
+      }
+      break;
+
+    case 8: /* Mouse */
+      g_print ("Mouse; ignored for now\n");
       break;
 
     default:
