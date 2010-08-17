@@ -48,6 +48,7 @@ struct _XzibitClient {
   GHashTable *vnc_servers;
   GHashTable *vnc_fds;
   GHashTable *audio_channels;
+  guint32 respawn_id;
 };
 
 #define CONTROL_CHANNEL 0
@@ -66,6 +67,24 @@ struct _XzibitClient {
 #define METADATA_TYPE 3
 #define METADATA_ICON 4
 
+static void send_block_header (XzibitClient *client,
+                               int channel,
+                               int length);
+static void send_word (XzibitClient *client, guint16 word);
+static void send_byte (XzibitClient *client, guint8 byte);
+
+static void
+received_header (XzibitClient *client)
+{
+  send_block_header (client,
+                     CONTROL_CHANNEL,
+                     5);
+
+  send_byte (client, COMMAND_RESPAWN);
+  send_word (client, client->respawn_id >> 16);
+  send_word (client, client->respawn_id & 0xFFFF);
+}
+
 static gboolean
 received_from_xzibit (GIOChannel *source,
 		      GIOCondition condition,
@@ -78,8 +97,6 @@ received_from_xzibit (GIOChannel *source,
   count = read (client->xzibit_fd,
                 buffer,
                 sizeof(buffer));
-
-  g_print ("Count is %d\n", count);
 
   for (i=0; i<count; i++)
     {
@@ -111,6 +128,9 @@ received_from_xzibit (GIOChannel *source,
 		{
 		  g_error ("Didn't get the header.");
 		}
+
+              if (client->state==-5)
+                received_header (client);
 	    }
 	  else
 	    {
@@ -287,6 +307,7 @@ xzibit_client_new (void)
   result->channel = 0;
   result->buffer = NULL;
   result->highest_channel = 0;
+  result->respawn_id = random();
 
   result->vnc_servers =
     g_hash_table_new_full (g_int_hash,
