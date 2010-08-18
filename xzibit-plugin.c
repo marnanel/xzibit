@@ -192,15 +192,6 @@ struct _MutterXzibitPluginPrivate
    * not currently receiving a block.
    */
   unsigned char *bottom_buffer;
-
-  /**
-   * Xzibit IDs mapped to XIDs on the current
-   * server.  FIXME: Note that this assumes
-   * that there's only one remote xzibit,
-   * which we should reconsider.
-   * FIXME: not in use and should be.
-   */
-  GHashTable *remote_xzibit_id_to_xid;
 };
 
 /**
@@ -411,12 +402,6 @@ start (MutterPlugin *plugin)
                            g_int_equal,
                            g_free,
                            g_free);
-
-  priv->remote_xzibit_id_to_xid =
-    g_hash_table_new_full (g_int_hash,
-			   g_int_equal,
-			   g_free,
-			   g_free);
 }
 
 static void
