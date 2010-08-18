@@ -89,7 +89,8 @@ The defined opcodes are:
             these same four bytes as an argument to RESPAWN, the xzibit
             instance at the other end MAY consider the subsequent connection
             to be a continuation of the first one, and MAY re-send all
-            the shared windows.
+            the shared windows.  If used, this SHOULD be the first message
+            given in a connection.
  0x06 AVATAR, followed by a PNG-encoded image.  The image is to be used as
             an icon to represent the sending xzibit at the other end.
             (You may find such an image at ~/.face under GNOME.  Beware that
