@@ -952,7 +952,7 @@ receive_window (gpointer data)
 {
   guint32 * args = (int*) data;
   GError *error = NULL;
-  const char **argvl = g_malloc(sizeof (char*) * 7);
+  const char **argvl = g_malloc(sizeof (char*) * 8);
   char *port_as_string = g_strdup_printf("%d", args[0]);
   char *id_as_string = g_strdup_printf("%d", args[1]);
   gboolean is_override_redirect = FALSE; /* stub; FIXME */
@@ -965,7 +965,8 @@ receive_window (gpointer data)
   argvl[3] = "-i";
   argvl[4] = id_as_string;
   argvl[5] = is_override_redirect? "-o": "";
-  argvl[6] = 0;
+  argvl[6] = "--sync";
+  argvl[7] = 0;
 
   g_spawn_async (
                  "/",

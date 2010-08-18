@@ -1,8 +1,12 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
+#include <gio/gio.h>
 #include <vncdisplay.h>
 #include <sys/socket.h>
 #include <X11/X.h>
+#include <X11/extensions/XInput2.h>
+#include <X11/extensions/XI2.h>
+#include <X11/extensions/XInput.h>
 
 /****************************************************************
  * Some globals.  FIXME: most of them have been superseded.
@@ -29,6 +33,8 @@ int fd_read_channel = 0;
 int fd_read_length = 0;
 char* fd_read_buffer = NULL;
 
+GdkCursor *avatar_cursor = NULL;
+
 /**
  * What we know about each received window.
  */
@@ -47,6 +53,12 @@ typedef struct {
    * The xzibit ID of this window.
    */
   int id;
+  /**
+   * The doppelganger pointer: the pointer representing the
+   * mouse movements of the person on the other end of
+   * the connection.
+   */
+  int doppelganger_pointer;
 
 } XzibitReceivedWindow;
 
@@ -113,6 +125,70 @@ set_window_id (GtkWidget *window,
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 {
   /* nothing */
+}
+
+static void
+add_mpx_for_window (XzibitReceivedWindow *received)
+{
+  XIAddMasterInfo add;
+  /* FIXME: Using the respawn ID here, if we have it,
+   * would be less brittle.
+   */
+  gchar *name = g_strdup_printf("xzibit-r-%d-%d",
+				remote_server,
+				received->id);
+  int ndevices;
+  XIDeviceInfo *devices, *device;
+  int i;
+  int current_pointer;
+
+  /* add the device */
+
+  add.type = XIAddMaster;
+  add.name = name;
+  add.send_core = True;
+  add.enable = True;
+
+  g_warning ("Adding new pointer called %s", name);
+
+  XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
+		     (XIAnyHierarchyChangeInfo*) &add,
+		     0 /* <-- FIXME: This should be 1
+		       * but that currently breaks with BadDevice,
+		       * which the man page says can't happen;
+		       * I think it's a bug in the version of
+		       * XInput2 we're using; try again with sid */ );
+
+  /* now see whether it's in the list */
+
+  received->doppelganger_pointer = -1;
+
+  devices = XIQueryDevice(gdk_x11_get_default_xdisplay (),
+			  XIAllDevices, &ndevices);
+
+  for (i = 0; i < ndevices; i++) {
+    device = &devices[i];
+
+    if (g_str_has_prefix (device->name,
+			  name))
+      {
+	switch (device->use)
+	  {
+	  case XISlavePointer:
+	    received->doppelganger_pointer = device->deviceid;
+	    break;
+	  }
+      }
+  }
+
+  if (received->doppelganger_pointer==-1)
+    {
+      g_warning ("The doppelganger pointer for channel %d could not be created.",
+		 received->id);
+    }
+
+  XIFreeDeviceInfo(devices);
+  g_free (name);
 }
 
 static gboolean
@@ -195,50 +271,83 @@ typedef struct _PostponedMetadata {
   char *content;
 } PostponedMetadata;
 
+static void
+set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
+{
+  int current_pointer;
+  Window window = GDK_WINDOW_XID (GTK_WIDGET (received->window)->window);
+
+  if (!avatar_cursor || received->doppelganger_pointer==-1)
+    return;
+
+  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+		      window,
+		      &current_pointer);
+  
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      window,
+		      received->doppelganger_pointer);
+
+  gdk_window_set_cursor (GTK_WIDGET(received->window)->window,
+			 avatar_cursor);
+
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      window,
+		      current_pointer);
+
+  g_print(">>>>>>>>>>> SET CUSTOM CURSOR <<<<<<<<<<<<\n");
+}
+
+static void
+set_custom_cursor_on_received_window_hash_foreach (gpointer dummy1,
+						   gpointer window,
+						   gpointer dummy2)
+{
+  XzibitReceivedWindow *received = window;
+  set_custom_cursor_on_received_window (received);
+}
+
 static gboolean
 exposed_window (GtkWidget *widget,
 		GdkEventExpose *event,
 		gpointer data)
 {
-  GSList *postponements, *cursor;
+  GSList *postponements = NULL;
   int xzibit_id = GPOINTER_TO_INT (data);
+  XzibitReceivedWindow *received;
 
-  if (!postponed_metadata)
+  if (postponed_metadata)
+    postponements = g_hash_table_lookup (postponed_metadata,
+					 GINT_TO_POINTER (xzibit_id));
+
+  received = g_hash_table_lookup (received_windows,
+				  &xzibit_id);
+
+  if (postponements)
     {
-      return FALSE;
-    }
+      GSList *cursor = postponements;
 
-  postponements = g_hash_table_lookup (postponed_metadata,
-				       GINT_TO_POINTER (xzibit_id));
+      g_hash_table_remove (postponed_metadata,
+			   GINT_TO_POINTER (xzibit_id));
 
-  if (!postponements)
-    {
-      return FALSE;
-    }
-
-  g_hash_table_remove (postponed_metadata,
-		       GINT_TO_POINTER (xzibit_id));
-
-  cursor = postponements;
-
-  while (cursor)
-    {
-      PostponedMetadata *metadata = cursor->data;
-      XzibitReceivedWindow *received =
-	g_hash_table_lookup (received_windows,
-		     &xzibit_id);
-
-      apply_metadata_now (received,
-			  metadata->id,
-			  metadata->content,
-			  metadata->length);
+      while (cursor)
+	{
+	  PostponedMetadata *metadata = cursor->data;
+	  
+	  apply_metadata_now (received,
+			      metadata->id,
+			      metadata->content,
+			      metadata->length);
       
-      g_free (metadata->content);
-      g_free (metadata);
-      cursor = cursor->next;
+	  g_free (metadata->content);
+	  g_free (metadata);
+	  cursor = cursor->next;
+	}
+
+      g_slist_free (postponements);
     }
 
-  g_slist_free (postponements);
+  set_custom_cursor_on_received_window (received);
 
   return FALSE;
 }
@@ -319,6 +428,7 @@ open_new_channel (int channel_id)
   received->window = window;
   received->fd = sockets[0];
   received->id = channel_id;
+  received->doppelganger_pointer = -1;
 
   channel = g_io_channel_unix_new (sockets[0]);
   g_io_add_watch (channel,
@@ -331,6 +441,7 @@ open_new_channel (int channel_id)
 		    G_CALLBACK(exposed_window),
 		    GINT_TO_POINTER (channel_id));
 
+  add_mpx_for_window (received);
 }
 
 static void
@@ -460,7 +571,39 @@ handle_control_channel_message (int channel,
       break;
       
     case 6: /* Avatar */
-      g_print ("Avatar; ignored for now\n");
+      {
+	GdkPixbuf *pixbuf;
+	GError *error = NULL;
+	GInputStream *source =
+	  g_memory_input_stream_new_from_data (buffer+1,
+					       length,
+					       NULL);
+
+	pixbuf = gdk_pixbuf_new_from_stream (source,
+					     NULL,
+					     &error);
+
+	g_input_stream_close (source, NULL, NULL);
+
+	if (error)
+	  {
+	    /* free it, but ignore it */
+	    g_error_free (error);
+	    g_warning ("We were sent an invalid PNG as an avatar.");
+	  }
+	else
+	  {
+	    avatar_cursor =
+	      gdk_cursor_new_from_pixbuf (gdk_display_get_default (),
+					  pixbuf,
+					  0, 0);
+
+	    if (received_windows)
+	      g_hash_table_foreach (received_windows,
+				    set_custom_cursor_on_received_window_hash_foreach,
+				    NULL);
+	  }
+      }
       break;
 
     case 7: /* Listen */
@@ -628,6 +771,15 @@ prepare_message_handlers (void)
 		       handle_control_channel_message);
 }
 
+static void
+initialise_extensions (void)
+{
+  int major = 2, minor = 0;
+  if (XIQueryVersion(gdk_x11_get_default_xdisplay (), &major, &minor) == BadRequest) {
+    g_error("XI2 not available. Server supports %d.%d\n", major, minor);
+  }
+}
+
 int
 main (int argc, char **argv)
 {
@@ -640,6 +792,8 @@ main (int argc, char **argv)
   g_print ("RFB client starting...\n");
 
   prepare_message_handlers ();
+
+  initialise_extensions ();
 
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
