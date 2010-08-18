@@ -136,20 +136,6 @@ struct _MutterXzibitPluginPrivate
    */
 
   /**
-   * File descriptor connected to xzibit-rfb-client.
-   * I know it's a bit confusing that "server" links to
-   * xzibit-rfb-*client*.  x-r-c is an RFB client, but
-   * provides the Xzibit service.
-   */
-  int server_fd;
-
-  /**
-   * File descriptor representing a connection on the
-   * listening socket.
-   */
-  int top_fd;
-
-  /**
    * File descriptor representing the listening socket
    * itself.
    */
@@ -226,6 +212,39 @@ struct _MutterXzibitPluginPrivate
    */
   GHashTable *postponed_metadata;
 };
+
+/**
+ * Everything we need to know about one instance
+ * of xzibit-rfb-client, which is serving one
+ * connection from the remote xzibit.
+ */
+typedef struct _XzibitRfbClient {
+  /**
+   * The plugin it's associated with.
+   */
+  MutterPlugin *plugin;
+
+  /**
+   * The serial ID of this connection.
+   *
+   * \todo  Later we need to add a four-byte
+   *        space to store the respawn ID.
+   */
+  unsigned int id;
+
+  /**
+   * A TCP socket connected to the remote
+   * xzibit.
+   */
+  int top_fd;
+
+  /**
+   * A socket connected to the xzibit-rfb-client
+   * program.
+   */
+  int server_fd;
+
+} XzibitRfbClient;
 
 static void
 debug_flow (const char *place,
@@ -396,8 +415,6 @@ start (MutterPlugin *plugin)
                priv->listening_fd);
     }
 
-  priv->server_fd = -1; /* not currently open */
-  priv->top_fd = -1;
   priv->bottom_fd = -1;
   priv->client_fd = -1;
 
@@ -980,7 +997,8 @@ copy_server_to_top (GIOChannel *source,
                        gpointer data)
 {
   /* FIXME: what should the return result be? */
-  MutterPlugin *plugin = (MutterPlugin*) data;
+  XzibitRfbClient *server_details = (XzibitRfbClient*) data;
+  MutterPlugin *plugin = server_details->plugin;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   char buffer[4096];
   int fd = g_io_channel_unix_get_fd (source);
@@ -1002,30 +1020,32 @@ copy_server_to_top (GIOChannel *source,
   DEBUG_FLOW ("forwarding from SERVER to TOP", buffer, count);
 
   /* FIXME: check result */
-  write (priv->top_fd,
+  write (server_details->top_fd,
          buffer,
          count);
 }
 
 static gboolean
 copy_top_to_server (GIOChannel *source,
-                       GIOCondition condition,
-                       gpointer data)
+                    GIOCondition condition,
+                    gpointer data)
 {
-  MutterPlugin *plugin = (MutterPlugin*) data;
+  XzibitRfbClient *server_details = (XzibitRfbClient*) data;
+  MutterPlugin *plugin = server_details->plugin;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   char buffer[1024];
   int count;
   int i;
   int q;
 
-  if (priv->server_fd == -1)
+  if (server_details->server_fd == -1)
     {
       /* No remote client?  Make one. */
 
-      char *argvl[4];
+      char *argvl[6];
       int sockets[2];
-      char *fd_as_string;
+      char *fd_as_string,
+        *id_as_string;
       GIOChannel *channel;
 
       socketpair (AF_LOCAL,
@@ -1033,24 +1053,24 @@ copy_top_to_server (GIOChannel *source,
                   0,
                   sockets);
 
-      priv->server_fd = sockets[0];
-      channel = g_io_channel_unix_new (priv->server_fd);
+      server_details->server_fd = sockets[0];
+      channel = g_io_channel_unix_new (server_details->server_fd);
       g_io_add_watch (channel,
                       G_IO_IN,
                       copy_server_to_top,
-                      plugin);
+                      server_details);
 
       fd_as_string = g_strdup_printf ("%d",
                                       sockets[1]);
+      id_as_string = g_strdup_printf ("%d",
+                                      server_details->id);
 
       argvl[0] = "xzibit-rfb-client";
       argvl[1] = "-f";
       argvl[2] = fd_as_string;
-      argvl[3] = 0;
-
-      g_print ("[%s] Our side is %d, their side is %d\n",
-               gdk_display_get_name (gdk_display_get_default()),
-               sockets[0], sockets[1]);
+      argvl[3] = "-r";
+      argvl[4] = id_as_string;
+      argvl[5] = 0;
 
       g_spawn_async (
                      "/",
@@ -1064,9 +1084,10 @@ copy_top_to_server (GIOChannel *source,
                      );
 
       g_free (fd_as_string);
+      g_free (id_as_string);
     }
 
-  count = read (priv->top_fd,
+  count = read (server_details->top_fd,
                 buffer,
                 sizeof(buffer));
 
@@ -1088,11 +1109,11 @@ copy_top_to_server (GIOChannel *source,
   /* now, if we have an xzibit-rfb-client,
    * write the data out to it.
    */
-  if (priv->server_fd != -1)
+  if (server_details->server_fd != -1)
     {
       DEBUG_FLOW ("sent to x-r-c", buffer, count);
 
-      write (priv->server_fd,
+      write (server_details->server_fd,
              buffer,
              count);
     }
@@ -1109,34 +1130,36 @@ accept_connections (GIOChannel *source,
                     GIOCondition condition,
                     gpointer data)
 {
+  static int highest_id = 0;
   MutterPlugin *plugin = (MutterPlugin*) data;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GIOChannel *channel;
+  XzibitRfbClient *server_details;
 
   g_print ("Connection on our socket.\n");
 
-  if (priv->top_fd != -1)
-    {
-      /* FIXME: consider what we should
-         really do in this case */
-      g_error ("multiple connections; can't deal yet");
-    }
-
-  priv->top_fd = accept (priv->listening_fd, NULL, NULL);
+  server_details = g_malloc (sizeof (XzibitRfbClient));
+  server_details->plugin = plugin;
+  server_details->id = ++highest_id;
+  /* Setting this to -1 tells the handler to invoke
+   * xzibit-rfb-client when needed.
+   */
+  server_details->server_fd = -1;
+  server_details->top_fd = accept (priv->listening_fd, NULL, NULL);
 
   DEBUG_FLOW ("sending header",
               xzibit_header,
               sizeof(xzibit_header)-1);
-  write (priv->top_fd,
+  write (server_details->top_fd,
          xzibit_header,
          sizeof(xzibit_header)-1 /* no trailing null */);
-  fsync (priv->top_fd);
+  fsync (server_details->top_fd);
 
-  channel = g_io_channel_unix_new (priv->top_fd);
+  channel = g_io_channel_unix_new (server_details->top_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
                   copy_top_to_server,
-                  plugin);
+                  server_details);
 }
 
 static void
