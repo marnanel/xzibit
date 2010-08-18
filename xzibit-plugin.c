@@ -1284,24 +1284,6 @@ copy_bottom_to_client (GIOChannel *source,
       priv->bottom_stage++;
     }
 
-#if 0
-  xid = g_hash_table_lookup (priv->remote_xzibit_id_to_xid,
-                             &xzibit_id);
-
-  if (xid)
-    {
-      g_print ("This is for window %x\n", (int) xid);
-  /*
-    fd = vnc_fd (window);
-    ...
-  */
-    }
-  else
-    {
-      g_print ("I don't know that window.\n");
-    }
-#endif      
-
   return TRUE;
 }
 
