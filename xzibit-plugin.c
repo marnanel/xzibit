@@ -947,51 +947,6 @@ share_window (Display *dpy,
   XFree (name_of_window);
 }
 
-static gboolean
-receive_window (gpointer data)
-{
-  guint32 * args = (int*) data;
-  GError *error = NULL;
-  const char **argvl = g_malloc(sizeof (char*) * 8);
-  char *port_as_string = g_strdup_printf("%d", args[0]);
-  char *id_as_string = g_strdup_printf("%d", args[1]);
-  gboolean is_override_redirect = FALSE; /* stub; FIXME */
-
-  g_warning ("Receiving window on port %d\n", args[0]);
-
-  argvl[0] = "xzibit-rfb-client";
-  argvl[1] = "-p";
-  argvl[2] = port_as_string;
-  argvl[3] = "-i";
-  argvl[4] = id_as_string;
-  argvl[5] = is_override_redirect? "-o": "";
-  argvl[6] = "--sync";
-  argvl[7] = 0;
-
-  g_spawn_async (
-                 "/",
-                 (gchar**) argvl,
-                 NULL,
-                 G_SPAWN_SEARCH_PATH,
-                 NULL, NULL,
-                 NULL,
-                 &error
-                 );
-
-  g_free (port_as_string);
-  g_free (argvl);
-  
-  if (error)
-    {
-      meta_warning ("Attempting to launch window receiving service: %s\n", error->message);
-      g_error_free (error);
-    }
-
-  g_free (data);
-
-  return FALSE;
-}
-
 static void
 set_sharing_state (Display *dpy,
                    Window window, int sharing_state, MutterPlugin *plugin)
