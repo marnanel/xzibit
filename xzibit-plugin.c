@@ -148,13 +148,9 @@ struct _MutterXzibitPluginPrivate
   int bottom_fd;
 
   /**
-   * File descriptor connected to libvncserver.
-   * FIXME: it may not be necessary to store this
-   *        (only its io channel).
-   * FIXME: there need to be "n" of these, like in
-   *        a hash table or something.
+   * File descriptors connected to libvncserver.
    */
-  int client_fd;
+  GHashTable *client_fds;
 
   /**
    * Set if we're running under a test harness,
@@ -416,7 +412,11 @@ start (MutterPlugin *plugin)
     }
 
   priv->bottom_fd = -1;
-  priv->client_fd = -1;
+  priv->client_fds =
+    g_hash_table_new_full (g_int_hash,
+                           g_int_equal,
+                           g_free,
+                           g_free);
 
   priv->remote_xzibit_id_to_xid =
     g_hash_table_new_full (g_int_hash,
@@ -796,26 +796,28 @@ share_window (Display *dpy,
   int xzibit_id = ++highest_channel;
   GIOChannel *channel;
   ForwardRFBAcrossTubesData *forward_data;
-      
+  int *client_fd, *key;
+
   g_print ("[%s] Share window %x...",
            gdk_display_get_name (gdk_display_get_default()),
            (int) window
            );
 
-  /*
-   * FIXME: This will obviously need to be
-   * a hash table to support sharing
-   * multiple windows.
-   */
-  priv->client_fd = vnc_fd (window);
+  key = g_malloc (sizeof (int));
+  *key = xzibit_id;
 
-  if (priv->client_fd==-1)
+  client_fd = g_malloc (sizeof (int));
+  *client_fd = vnc_fd (window);
+
+  g_hash_table_insert (priv->client_fds,
+                       key,
+                       client_fd);
+
+  if (*client_fd==-1)
     {
       /* Not yet opened: open it */
       vnc_start (window);
-      priv->client_fd = vnc_fd (window);
-
-      g_print ("Created client FD.\n");
+      *client_fd = vnc_fd (window);
     }
 
   /* make sure we have the bottom connection */
@@ -879,7 +881,7 @@ share_window (Display *dpy,
   forward_data = g_malloc(sizeof(ForwardRFBAcrossTubesData));
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
-  channel = g_io_channel_unix_new (priv->client_fd);
+  channel = g_io_channel_unix_new (*client_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
                   copy_client_to_bottom,
@@ -1169,7 +1171,7 @@ handle_message_to_client (MutterPlugin *plugin,
                           int length)
 {
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  int fd;
+  int *fd;
 
   if (channel==0)
     {
@@ -1181,15 +1183,22 @@ handle_message_to_client (MutterPlugin *plugin,
   /*
    * FIXME: Look it up in a hash table
    */
-  fd = priv->client_fd;
+  fd = g_hash_table_lookup (priv->client_fds,
+                            &channel);
 
-  g_print ("Spidey-sense tells us the FD is %d\n", fd);
+  if (!fd) {
+    g_warning ("Discarding message to channel %d because it doesn't have a handler",
+               channel);
+    return;
+  }
+
+  g_print ("Spidey-sense tells us the FD is %d\n", *fd);
 
   /* FIXME: error checking; it could run short */
 
   DEBUG_FLOW ("sent from TOP to CLIENT",
               buffer, length);
-  write (fd, buffer, length);
+  write (*fd, buffer, length);
 }
 
 static gboolean
