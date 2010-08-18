@@ -3,6 +3,7 @@
 #include <gio/gio.h>
 #include <vncdisplay.h>
 #include <sys/socket.h>
+#include <string.h>
 #include <X11/X.h>
 #include <X11/extensions/XInput2.h>
 #include <X11/extensions/XI2.h>
@@ -26,6 +27,11 @@ typedef enum {
   STATE_SEEN_CHANNEL,
   STATE_SEEN_LENGTH,
 } FdReadState;
+
+#define METADATA_TRANSIENCY 1
+#define METADATA_TITLE 2
+#define METADATA_TYPE 3
+#define METADATA_ICON 4
 
 FdReadState fd_read_state = STATE_START;
 int fd_read_through = 0;
@@ -255,14 +261,52 @@ handle_audio_message (int channel,
 }
 
 static void
-apply_metadata_now (XzibitReceivedWindow *target,
+apply_metadata_now (XzibitReceivedWindow *received,
 		    int metadata_id,
 		    unsigned char *buffer,
 		    int length)
 {
+  GtkWindow *target = GTK_WINDOW (received->window);
+
+  switch (metadata_id)
+    {
+    case METADATA_TRANSIENCY:
+      g_warning ("Attempt to set transiency: not yet implemented\n");
+      break;
+
+    case METADATA_TITLE:
+      {
+	char *copy = g_malloc (length+1);
+	int i;
+
+	memcpy (copy, buffer, length);
+	copy[length] = 0;
+
+	g_print ("[*** [%s] *** %d]\n", copy, length);
+
+	for (i=0; i<length+1; i++) {
+	  g_print ("%02x %02x\n", copy[i], buffer[i]);
+	}
+	gtk_window_set_title (target,
+			      copy);
+	g_free (copy);
+      }
+      break;
+
+    case METADATA_TYPE:
+      g_warning ("Attempt to set window type: not yet implemented\n");
+      break;
+
+    case METADATA_ICON:
+      g_warning ("Attempt to set window icon: not yet implemented\n");
+      break;
+
+    default:
+      g_warning ("Attempt to add unknown metadata of type %d "
+		 "to window %d.", metadata_id, received->id);
+    }
+
   /* FIXME */
-  g_print ("Applying metadata type %d.\n",
-	   metadata_id);
 }
 
 typedef struct _PostponedMetadata {
@@ -334,6 +378,7 @@ exposed_window (GtkWidget *widget,
 	{
 	  PostponedMetadata *metadata = cursor->data;
 	  
+	  g_print ("Postponed...\n");
 	  apply_metadata_now (received,
 			      metadata->id,
 			      metadata->content,
@@ -460,6 +505,7 @@ apply_metadata (int metadata_id,
 
   if (received)
     {
+      g_print ("Known.\n");
       apply_metadata_now (received,
 			  metadata_id,
 			  buffer,
@@ -557,8 +603,8 @@ handle_control_channel_message (int channel,
       
       apply_metadata (buffer[1]|buffer[2]*256,
 		      buffer[3]|buffer[4]*256,
-		      buffer+4,
-		      length-4);
+		      buffer+5,
+		      length-5);
       
       break;
 
