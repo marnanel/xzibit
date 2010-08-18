@@ -1180,9 +1180,6 @@ handle_message_to_client (MutterPlugin *plugin,
     }
 
   g_print ("This is a message for channel %d\n", channel);
-  /*
-   * FIXME: Look it up in a hash table
-   */
   fd = g_hash_table_lookup (priv->client_fds,
                             &channel);
 
