@@ -504,10 +504,6 @@ open_new_channel (int channel_id)
   gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
 
   vnc = vnc_display_new();
-  /* FIXME: We really don't want to quit
-     ALL windows if the VNC for ONE gets
-     disconnected.
-  */
   g_signal_connect (window, "delete_event",
 		    G_CALLBACK (close_channel), NULL);
   g_signal_connect(vnc, "vnc-disconnected",
