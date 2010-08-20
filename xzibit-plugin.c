@@ -850,10 +850,12 @@ copy_server_to_top (GIOChannel *source,
 
   DEBUG_FLOW ("forwarding from SERVER to TOP", buffer, count);
 
-  /* FIXME: check result */
-  write (server_details->top_fd,
-         buffer,
-         count);
+  if (write (server_details->top_fd,
+             buffer,
+             count)<count)
+    {
+      g_warning ("Error in writing to our socket.");
+    }
 
   return TRUE;
 }
