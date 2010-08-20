@@ -214,17 +214,14 @@ check_for_rfb_replies (GIOChannel *source,
 
   if (count<0)
     {
-      /* FIXME this is silly */
       perror ("xzibit");
-      g_error ("Something died downstream");
+      g_error ("The controlling process closed the connection.");
     }
 
   if (count==0)
     {
       return;
     }
-
-  g_print ("We have %d bytes TO the rfb server\n", count);
 
   header[0] = received->id % 256;
   header[1] = received->id / 256;
