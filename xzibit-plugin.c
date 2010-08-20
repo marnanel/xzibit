@@ -112,14 +112,6 @@ struct _MutterXzibitPluginPrivate
    */
   MutterPluginInfo       info;
 
-  /**
-   * Atom values.
-   * FIXME: gdk can do this for us, you know.
-   */
-  int xzibit_share_atom;
-  int wm_transient_for_atom;
-  int cardinal_atom;
-
   /*
    * File descriptors:
    * They work as follows.   () = fd
@@ -308,10 +300,6 @@ start (MutterPlugin *plugin)
 
       /* which means nothing at all at the moment */
     }
-
-  priv->xzibit_share_atom = 0;
-  priv->wm_transient_for_atom = 0;
-  priv->cardinal_atom = 0;
 
   priv->dpy = NULL;
 
@@ -687,18 +675,13 @@ share_window (Display *dpy,
   /* also supply metadata */
 
   /* FIXME: We should also consider WM_NAME */
-  /* FIXME: We should cache the atoms */
   if (XGetWindowProperty(dpy,
                          window,
-                         XInternAtom(dpy,
-                                     "_NET_WM_NAME",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
                          0,
                          1024,
                          False,
-                         XInternAtom(dpy,
-                                     "UTF8_STRING",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("UTF8_STRING"),
                          &actual_type,
                          &actual_format,
                          &n_items,
@@ -710,15 +693,11 @@ share_window (Display *dpy,
 
   if (XGetWindowProperty(dpy,
                          window,
-                         XInternAtom(dpy,
-                                     "_NET_WM_WINDOW_TYPE",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("_NET_WM_WINDOW_TYPE"),
                          0,
                          1,
                          False,
-                         XInternAtom(dpy,
-                                     "ATOM",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("ATOM"),
                          &actual_type,
                          &actual_format,
                          &n_items,
@@ -1107,15 +1086,11 @@ related_to_shared_window (Display *dpy,
 
   if (XGetWindowProperty(dpy,
                          window,
-                         XInternAtom(dpy,
-                                     relationship,
-                                     False),
+                         gdk_x11_get_xatom_by_name (relationship),
                          0,
                          4,
                          False,
-                         XInternAtom(dpy,
-                                     "WINDOW",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("WINDOW"),
                          &actual_type,
                          &actual_format,
                          &n_items,
@@ -1141,15 +1116,11 @@ related_to_shared_window (Display *dpy,
 
   if (XGetWindowProperty(dpy,
                          parent,
-                         XInternAtom(dpy,
-                                     "_XZIBIT_SHARE",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE"),
                          0,
                          4,
                          False,
-                         XInternAtom(dpy,
-                                     "CARDINAL",
-                                     False),
+                         gdk_x11_get_xatom_by_name ("CARDINAL"),
                          &actual_type,
                          &actual_format,
                          &n_items,
@@ -1198,8 +1169,8 @@ share_transiency_on_map (MutterPlugin *plugin,
             
       XChangeProperty (dpy,
                        window,
-                       priv->wm_transient_for_atom,
-                       priv->cardinal_atom,
+                       gdk_x11_get_xatom_by_name ("WM_TRANSIENT_FOR"),
+                       gdk_x11_get_xatom_by_name ("CARDINAL"),
                        32,
                        PropModeReplace,
                        (const unsigned char*) &window_is_shared,
@@ -1245,17 +1216,11 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
       {
         XPropertyEvent *property = (XPropertyEvent*) event;
         int new_state = 0;
+        Atom xzibit_share_atom = gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE");
 
         ensure_display (plugin, property->display);
-
-        if (priv->xzibit_share_atom == 0)
-          {
-            priv->xzibit_share_atom = XInternAtom(property->display,
-                                                  "_XZIBIT_SHARE",
-                                                  False);
-          }
       
-        if (property->atom != priv->xzibit_share_atom)
+        if (property->atom != xzibit_share_atom)
           return FALSE;
 
         if (property->state == PropertyDelete)
@@ -1274,7 +1239,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
 
             XGetWindowProperty(property->display,
                                property->window,
-                               priv->xzibit_share_atom,
+                               xzibit_share_atom,
                                0, 4, False,
                                AnyPropertyType,
                                &type, &format, &nitems, &bytes_after,
