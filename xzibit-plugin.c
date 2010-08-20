@@ -432,7 +432,6 @@ send_from_bottom (MutterPlugin *plugin,
   buffer = g_malloc (count+4);
 
   va_start (ap, channel);
-  /* FIXME: i=4; ... would be more efficient */
   for (i=0; i<count; i++)
     {
       buffer[i+4] = (unsigned char) (va_arg (ap, int));
