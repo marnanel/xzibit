@@ -765,12 +765,31 @@ static void
 unshare_window (Display *dpy,
                 Window window, MutterPlugin *plugin)
 {
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  ForwardedWindow *fw;
+
   g_print ("[%s] Unshare window %x...",
            gdk_display_get_name (gdk_display_get_default()),
            (int) window
            );
 
-  /* stub */
+  fw = g_hash_table_lookup (priv->forwarded_windows_by_x11_id,
+                            &window);
+
+  if (!fw)
+    return;
+
+  send_from_bottom (plugin,
+                    0, /* control channel */
+                    2, /* opcode */
+                    fw->channel % 256,
+                    fw->channel / 256,
+                    -1);
+
+  g_hash_table_remove (priv->forwarded_windows_by_x11_id,
+                       &window);
+  g_hash_table_remove (priv->forwarded_windows_by_xzibit_id,
+                       &fw->channel);
 }
 
 static void
