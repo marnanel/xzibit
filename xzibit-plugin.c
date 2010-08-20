@@ -102,8 +102,8 @@ static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
 MUTTER_PLUGIN_DECLARE(MutterXzibitPlugin, mutter_xzibit_plugin);
 
-/*
- * Plugin private data that we store in the .plugin_private member.
+/**
+ * Plugin private data.
  */
 struct _MutterXzibitPluginPrivate
 {
@@ -143,14 +143,6 @@ struct _MutterXzibitPluginPrivate
    * File descriptors connected to libvncserver.
    */
   GHashTable *client_fds;
-
-  /**
-   * Set if we're running under a test harness,
-   * on the side that doesn't listen as a server.
-   * FIXME: this is equivalent to listening_fd==-1
-   * and perhaps we can do without it.
-   */
-  gboolean test_as_client;
 
   /**
    * X display we're using, if known.
@@ -319,7 +311,6 @@ start (MutterPlugin *plugin)
        */
       g_print ("[%s] Here we would connect as a client.\n",
                gdk_display_get_name (gdk_display_get_default()));
-      priv->test_as_client = TRUE;
       priv->listening_fd = -1;
     }
   else
@@ -329,8 +320,6 @@ start (MutterPlugin *plugin)
 
       g_print ("[%s] Here we listen as a server as usual.\n",
                gdk_display_get_name (gdk_display_get_default()));
-
-      priv->test_as_client = FALSE;
 
       memset (&addr, 0, sizeof (addr));
       addr.sin_family = AF_INET;
