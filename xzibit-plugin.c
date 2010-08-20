@@ -529,15 +529,15 @@ typedef struct {
    * The X ID of the window we represent.
    */
   Window window;
-} ForwardRFBAcrossTubesData;
+} ForwardedWindow;
 
 static gboolean
 copy_client_to_bottom (GIOChannel *source,
                        GIOCondition condition,
                        gpointer data)
 {
-  ForwardRFBAcrossTubesData *forward_data =
-    (ForwardRFBAcrossTubesData*) data;
+  ForwardedWindow *forward_data =
+    (ForwardedWindow*) data;
   char buffer[1024];
   int count;
 
@@ -580,7 +580,7 @@ share_window (Display *dpy,
   unsigned char type_of_window[2] = { 0, 0 };
   int xzibit_id = ++highest_channel;
   GIOChannel *channel;
-  ForwardRFBAcrossTubesData *forward_data;
+  ForwardedWindow *forward_data;
   int *client_fd, *key;
 
   g_print ("[%s] Share window %x...",
@@ -663,7 +663,7 @@ share_window (Display *dpy,
 
   /* If we receive data from VNC, send it on. */
 
-  forward_data = g_malloc(sizeof(ForwardRFBAcrossTubesData));
+  forward_data = g_malloc(sizeof(ForwardedWindow));
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
   forward_data->window = window;
