@@ -511,9 +511,24 @@ send_metadata_from_bottom (MutterPlugin *plugin,
   fsync (priv->bottom_fd);
 }
 
+/**
+ * Everything we need to know about one
+ * shared window.
+ */
 typedef struct {
+  /**
+   * A handle on the Mutter plugin which
+   * is holding this object.
+   */
   MutterPlugin *plugin;
+  /**
+   * The xzibit ID of the window we represent.
+   */
   int channel;
+  /**
+   * The X ID of the window we represent.
+   */
+  Window window;
 } ForwardRFBAcrossTubesData;
 
 static gboolean
@@ -651,6 +666,8 @@ share_window (Display *dpy,
   forward_data = g_malloc(sizeof(ForwardRFBAcrossTubesData));
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
+  forward_data->window = window;
+
   channel = g_io_channel_unix_new (*client_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
