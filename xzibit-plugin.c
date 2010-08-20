@@ -91,9 +91,6 @@ static gboolean copy_top_to_server (GIOChannel *source,
 static gboolean copy_bottom_to_client (GIOChannel *source,
                                        GIOCondition condition,
                                        gpointer data);
-static gboolean check_upwards (GIOChannel *source,
-                                  GIOCondition condition,
-                                  gpointer data);
 static gboolean accept_connections (GIOChannel *source,
                                     GIOCondition condition,
                                     gpointer data);
