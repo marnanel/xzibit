@@ -315,8 +315,6 @@ apply_metadata_now (XzibitReceivedWindow *received,
       g_warning ("Attempt to add unknown metadata of type %d "
 		 "to window %d.", metadata_id, received->id);
     }
-
-  /* FIXME */
 }
 
 typedef struct _PostponedMetadata {
