@@ -256,10 +256,10 @@ handle_video_message (int channel,
     g_hash_table_lookup (received_windows,
 			 &channel);
       
-  g_print ("We have %d bytes FROM the rfb server\n", length);
-  /* FIXME: error checking; it could run short */
-  write (received->fd,
-	 buffer, length);
+  if (write (received->fd, buffer, length) < length)
+    {
+      g_warning ("Writing to the VNC library ran short.  Things will break.");
+    }
 }
 
 static void
