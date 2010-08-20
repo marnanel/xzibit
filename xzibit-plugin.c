@@ -64,9 +64,23 @@ typedef struct _MutterXzibitPlugin        MutterXzibitPlugin;
 typedef struct _MutterXzibitPluginClass   MutterXzibitPluginClass;
 typedef struct _MutterXzibitPluginPrivate MutterXzibitPluginPrivate;
 
+/**
+ * The highest channel we have yet allocated.
+ * Channel 0 is always allocated, because it's
+ * the control channel.
+ */
 int highest_channel = 0;
+
+/**
+ * The header string that gets set to anyone
+ * who connects.
+ */
 char xzibit_header[] = "Xz 000.001\r\n";
 
+/**
+ * The plugin we expose to the outside world.
+ * There are no user-servicable parts.
+ */
 struct _MutterXzibitPlugin
 {
   MutterPlugin parent;
@@ -74,15 +88,17 @@ struct _MutterXzibitPlugin
   MutterXzibitPluginPrivate *priv;
 };
 
+/**
+ * The subclass of Mutter plugins which
+ * implements Xzibit functionality.
+ */
 struct _MutterXzibitPluginClass
 {
   MutterPluginClass parent_class;
 };
 
-static GQuark actor_data_quark = 0;
-
-static gboolean   xevent_filter (MutterPlugin *plugin,
-                            XEvent      *event);
+static gboolean xevent_filter (MutterPlugin *plugin,
+                               XEvent      *event);
 
 static gboolean copy_top_to_server (GIOChannel *source,
                                     GIOCondition condition,
@@ -212,7 +228,7 @@ typedef struct _XzibitRfbClient {
  * Everything we need to know about one
  * shared window.
  */
-typedef struct {
+typedef struct _ForwardedWindow {
   /**
    * A handle on the Mutter plugin which
    * is holding this object.
@@ -234,6 +250,13 @@ typedef struct {
 
 } ForwardedWindow;
 
+/* leave it turned off for now */
+#if 0
+
+/**
+ * Dumps a stream of data as it's on its way somewhere.
+ * Usually this is turned off.
+ */
 static void
 debug_flow (const char *place,
             unsigned char *buffer, int count)
@@ -252,26 +275,34 @@ debug_flow (const char *place,
   g_print ("\n");
 }
 
-/* leave it turned off for now */
-#if 0
 #define DEBUG_FLOW(place, buffer, count) \
   debug_flow (place, buffer, count);
 #else
 #define DEBUG_FLOW(place, buffer, count) ;
 #endif
 
+/**
+ * Destructor.
+ */
 static void
 mutter_xzibit_plugin_dispose (GObject *object)
 {
   G_OBJECT_CLASS (mutter_xzibit_plugin_parent_class)->dispose (object);
 }
 
+/**
+ * Finaliser.
+ */
 static void
 mutter_xzibit_plugin_finalize (GObject *object)
 {
   G_OBJECT_CLASS (mutter_xzibit_plugin_parent_class)->finalize (object);
 }
 
+/**
+ * Theoretically allows us to set properties.
+ * In practice we have no properties to set.
+ */
 static void
 mutter_xzibit_plugin_set_property (GObject      *object,
 			    guint         prop_id,
@@ -286,6 +317,10 @@ mutter_xzibit_plugin_set_property (GObject      *object,
     }
 }
 
+/**
+ * Theoretically allows us to retrieve properties.
+ * In practice we have no properties to get.
+ */
 static void
 mutter_xzibit_plugin_get_property (GObject    *object,
 			    guint       prop_id,
@@ -300,12 +335,15 @@ mutter_xzibit_plugin_get_property (GObject    *object,
     }
 }
 
+/**
+ * Sets up the whole system and gets us underway.
+ *
+ * \param plugin  The plugin.
+ */
 static void
 start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  int flags;
-  GIOChannel *channel;
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -336,6 +374,7 @@ start (MutterPlugin *plugin)
     }
   else
     {
+      GIOChannel *channel;
       struct sockaddr_in addr;
       int one = 1;
 
@@ -406,6 +445,9 @@ start (MutterPlugin *plugin)
                            NULL);
 }
 
+/**
+ * Constructor of the Xzibit plugin class.
+ */
 static void
 mutter_xzibit_plugin_class_init (MutterXzibitPluginClass *klass)
 {
@@ -423,6 +465,9 @@ mutter_xzibit_plugin_class_init (MutterXzibitPluginClass *klass)
   g_type_class_add_private (gobject_class, sizeof (MutterXzibitPluginPrivate));
 }
 
+/**
+ * Constructor of the Xzibit plugin.
+ */
 static void
 mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 {
@@ -438,7 +483,12 @@ mutter_xzibit_plugin_init (MutterXzibitPlugin *self)
 }
 
 /**
+ * Sends a series of bytes from a particular channel from
+ * the side that's sending windows.
  *
+ * \todo  This isn't used anywhere near as much as I thought
+ *        it would be.  Probably it should be replaced by
+ *        send_buffer_from_bottom.
  */
 static void
 send_from_bottom (MutterPlugin *plugin,
@@ -481,6 +531,11 @@ send_from_bottom (MutterPlugin *plugin,
   g_free (buffer);
 }
 
+/**
+ * Sends the contents of a block of memory to a
+ * particular channel from the side that's sending
+ * windows.
+ */
 static void
 send_buffer_from_bottom (MutterPlugin *plugin,
                          int channel,
@@ -506,6 +561,15 @@ send_buffer_from_bottom (MutterPlugin *plugin,
   fsync (priv->bottom_fd);
 }
 
+/**
+ * Sends metadata to the control channel, from the side
+ * that's sending windows.
+ *
+ * \param xzibit_id       ID of the window we're talking about
+ * \param metadata_type   The type of the metadata (see spec)
+ * \param metadata        Pointer to the metadata itself
+ * \param metadata_length Length of the metadata
+ */
 static void
 send_metadata_from_bottom (MutterPlugin *plugin,
                            int xzibit_id,
@@ -539,6 +603,11 @@ send_metadata_from_bottom (MutterPlugin *plugin,
   fsync (priv->bottom_fd);
 }
 
+/**
+ * Copies RFB data received from libvncserver,
+ * regarding windows which are being sent,
+ * to the TCP connection.
+ */
 static gboolean
 copy_client_to_bottom (GIOChannel *source,
                        GIOCondition condition,
@@ -573,6 +642,9 @@ copy_client_to_bottom (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Initiates the sharing of a given window.
+ */
 static void
 share_window (Display *dpy,
               Window window, MutterPlugin *plugin)
@@ -754,6 +826,12 @@ share_window (Display *dpy,
   XFree (name_of_window);
 }
 
+/**
+ * Forces a window to stop being shared.
+ * (This is in response to the window closing or
+ * having its sharing property removed; we don't
+ * need to update anything on the X server.)
+ */
 static void
 unshare_window (Display *dpy,
                 Window window, MutterPlugin *plugin)
@@ -785,6 +863,10 @@ unshare_window (Display *dpy,
                        &fw->channel);
 }
 
+/**
+ * Responds to a change in a window's sharing property,
+ * such as by sharing or unsharing the window.
+ */
 static void
 set_sharing_state (Display *dpy,
                    Window window, int sharing_state, MutterPlugin *plugin)
@@ -794,9 +876,6 @@ set_sharing_state (Display *dpy,
       /* not our concern */
       return;
     }
-
-  g_warning ("(xzibit plugin saw a change of sharing of %06lx to %d)\n",
-             (unsigned long) window, sharing_state);
 
   switch (sharing_state)
     {
@@ -812,6 +891,11 @@ set_sharing_state (Display *dpy,
     }
 }
 
+/**
+ * Copies data about received windows from our display
+ * program out to the socket.  This data is already
+ * in the Xzibit protocol.
+ */
 static gboolean
 copy_server_to_top (GIOChannel *source,
                        GIOCondition condition,
@@ -853,6 +937,11 @@ copy_server_to_top (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Copies data received from our socket about received windows
+ * to our display program.  If the display program isn't
+ * running, it creates it first.
+ */
 static gboolean
 copy_top_to_server (GIOChannel *source,
                     GIOCondition condition,
@@ -953,6 +1042,10 @@ copy_top_to_server (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Handles a connection on the passive socket
+ * which has been waiting for someone to connect to it.
+ */
 static gboolean
 accept_connections (GIOChannel *source,
                     GIOCondition condition,
@@ -992,6 +1085,11 @@ accept_connections (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Forwards a block of data for a particular channel to the handler
+ * for that channel.  This is a helper function for copy_bottom_to_client,
+ * which is concerned with marshalling.
+ */
 static void
 handle_message_to_client (MutterPlugin *plugin,
                           int channel,
@@ -1007,7 +1105,6 @@ handle_message_to_client (MutterPlugin *plugin,
       return;
     }
 
-  g_print ("This is a message for channel %d\n", channel);
   fw = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
                             &channel);
 
@@ -1024,6 +1121,12 @@ handle_message_to_client (MutterPlugin *plugin,
   write (fw->client_fd, buffer, length);
 }
 
+/**
+ * Handles any data about received windows
+ * arriving from the connection we made to the
+ * other side's listening socket.  Also handles
+ * recognising the signature at the start.
+ */
 static gboolean
 copy_bottom_to_client (GIOChannel *source,
                        GIOCondition condition,
@@ -1119,6 +1222,15 @@ copy_bottom_to_client (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Returns whether a given window is related to a
+ * window that's being shared.
+ *
+ * \param dpy    The display
+ * \param window The given window
+ * \param relationship  How they might be related
+ *       (in practice, usually "WM_TRANSIENT_FOR")
+ */
 static gboolean
 related_to_shared_window (Display *dpy,
                           Window window,
@@ -1189,6 +1301,11 @@ related_to_shared_window (Display *dpy,
   return sharing==1;
 }
 
+/**
+ * When a window maps, this function checks whether
+ * it's transient to a shared window, and if it is,
+ * shares it as well.
+ */
 static void
 share_transiency_on_map (MutterPlugin *plugin,
                          XEvent *event)
@@ -1228,6 +1345,14 @@ share_transiency_on_map (MutterPlugin *plugin,
     }
 }
 
+/**
+ * Makes sure we've recorded the current X display.
+ *
+ * \param plugin     The plugin.
+ * \param known_good The current X display;
+ *                   we'll record this if we don't
+ *                   already know of one.
+ */
 static void
 ensure_display(MutterPlugin *plugin,
                Display *known_good)
@@ -1240,6 +1365,13 @@ ensure_display(MutterPlugin *plugin,
     }
 }
 
+/**
+ * Called on every X event.  We use this to spy on
+ * changes to properties and so on.
+ *
+ * \param plugin  Our plugin
+ * \param event   An X event
+ */
 static gboolean
 xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
@@ -1331,6 +1463,9 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
   return FALSE;
 }
 
+/**
+ * Returns information on this plugin.
+ */
 static const MutterPluginInfo *
 plugin_info (MutterPlugin *plugin)
 {
@@ -1338,3 +1473,5 @@ plugin_info (MutterPlugin *plugin)
 
   return &priv->info;
 }
+
+/* EOF xzibit-plugin.c */
