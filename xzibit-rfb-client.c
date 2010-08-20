@@ -10,12 +10,20 @@
 #include <X11/extensions/XInput.h>
 
 /****************************************************************
- * Some globals.  FIXME: most of them have been superseded.
+ * Some globals.
  ****************************************************************/
 
+/**
+ * Since we may be receiving windows from multiple Xzibit servers,
+ * each of which will have a running instance of xzibit-rfb-client,
+ * this is a serial number identifying *this* connection.  It's used
+ * to mark windows as belonging to us, amongst other things.
+ */
 int remote_server = 1;
-int port = 7177;
-int id = 0;
+
+/**
+ * The file descriptor which links us to our parent Mutter process.
+ */
 int following_fd = -1;
 
 /****************************************************************
@@ -77,12 +85,6 @@ GHashTable *postponed_metadata = NULL;
 
 static const GOptionEntry options[] =
 {
-	{
-	  "port", 'p', 0, G_OPTION_ARG_INT, &port,
-	  "The port number on localhost to connect to", NULL },
-	{
-	  "id", 'i', 0, G_OPTION_ARG_INT, &id,
-	  "The Xzibit ID of the window", NULL },
 	{
 	  "fd", 'f', 0, G_OPTION_ARG_INT, &following_fd,
 	  "The file descriptor which conveys the RFB protocol", NULL },
@@ -829,7 +831,6 @@ initialise_extensions (void)
 int
 main (int argc, char **argv)
 {
-  char *port_as_string;
   GOptionContext *context;
   GError *error = NULL;
 
