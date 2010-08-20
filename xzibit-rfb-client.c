@@ -713,7 +713,22 @@ handle_control_channel_message (int channel,
       break;
 
     case 8: /* Mouse */
-      g_print ("Mouse; ignored for now\n");
+      {
+	gboolean offscreen = FALSE;
+	guint x, y;
+
+	if (length!=5)
+	  {
+	    offscreen = TRUE;
+	    g_print ("Mouse goes offscreen; ignored for now\n");
+	  }
+	else
+	  {
+	    x = buffer[1]|buffer[2]*256;
+	    y = buffer[3]|buffer[4]*256;
+	    g_print ("Mouse at %d,%d; ignored for now\n", x, y);
+	  }
+      }
       break;
 
     default:
