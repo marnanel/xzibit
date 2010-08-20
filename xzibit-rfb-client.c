@@ -958,34 +958,5 @@ main (int argc, char **argv)
       g_warning ("No FD given to follow; we won't be able to do much");
     }
 
-#if 0
-  if (is_override_redirect)
-    {
-      /* We have a window ID but it won't have been
-       * mapped yet.  Now is the ideal time to go
-       * override-redirect.
-       */
-      gdk_window_set_override_redirect (GDK_WINDOW (window->window),
-					TRUE);
-      gdk_window_show (GDK_WINDOW (window->window));
-      /* otherwise it won't map */
-      
-      /* and now we have another problem: gtk-vnc won't draw
-       * on this window
-       * This is a specific gtk-vnc issue: tests show that
-       * gtk itself has no problem drawing on an override-redirect
-       * window.
-       * It happens because the image is drawn on the expose
-       * event, and GTK never calls the expose event handler
-       * on override-redirect windows.
-       * (at least, on classes subclassing GtkWidget; if you
-       * do it with a signal it works fine.  Need to investigate
-       * this further.)
-       */
-
-       }
-  gtk_widget_show_all (window);
-#endif
-
   gtk_main ();
 }
