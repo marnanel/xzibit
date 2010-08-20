@@ -121,7 +121,7 @@ struct _MutterXzibitPluginPrivate
    *                            \\
    *                             ()=bottom_fd
    *                             ||
-   *            [libvncserver]---()=client_fd
+   *            [libvncserver]---()=client_fd (in forwarded_windows)
    */
 
   /**
@@ -137,9 +137,9 @@ struct _MutterXzibitPluginPrivate
   int bottom_fd;
 
   /**
-   * File descriptors connected to libvncserver.
+   * Forwarded windows, with connections to libvncserver.
    */
-  GHashTable *client_fds;
+  GHashTable *forwarded_windows;
 
   /**
    * X display we're using, if known.
@@ -207,6 +207,32 @@ typedef struct _XzibitRfbClient {
   int server_fd;
 
 } XzibitRfbClient;
+
+/**
+ * Everything we need to know about one
+ * shared window.
+ */
+typedef struct {
+  /**
+   * A handle on the Mutter plugin which
+   * is holding this object.
+   */
+  MutterPlugin *plugin;
+  /**
+   * The xzibit ID of the window we represent.
+   */
+  int channel;
+  /**
+   * The X ID of the window we represent.
+   */
+  Window window;
+  /**
+   * The file descriptor which connects us to
+   * libvncserver.
+   */
+  int client_fd;
+
+} ForwardedWindow;
 
 static void
 debug_flow (const char *place,
@@ -371,7 +397,7 @@ start (MutterPlugin *plugin)
     }
 
   priv->bottom_fd = -1;
-  priv->client_fds =
+  priv->forwarded_windows =
     g_hash_table_new_full (g_int_hash,
                            g_int_equal,
                            g_free,
@@ -511,26 +537,6 @@ send_metadata_from_bottom (MutterPlugin *plugin,
   fsync (priv->bottom_fd);
 }
 
-/**
- * Everything we need to know about one
- * shared window.
- */
-typedef struct {
-  /**
-   * A handle on the Mutter plugin which
-   * is holding this object.
-   */
-  MutterPlugin *plugin;
-  /**
-   * The xzibit ID of the window we represent.
-   */
-  int channel;
-  /**
-   * The X ID of the window we represent.
-   */
-  Window window;
-} ForwardedWindow;
-
 static gboolean
 copy_client_to_bottom (GIOChannel *source,
                        GIOCondition condition,
@@ -588,21 +594,24 @@ share_window (Display *dpy,
            (int) window
            );
 
+  forward_data = g_malloc(sizeof(ForwardedWindow));
+  forward_data->plugin = plugin;
+  forward_data->channel = xzibit_id;
+  forward_data->window = window;
+  forward_data->client_fd = vnc_fd (window);
+
   key = g_malloc (sizeof (int));
   *key = xzibit_id;
 
-  client_fd = g_malloc (sizeof (int));
-  *client_fd = vnc_fd (window);
-
-  g_hash_table_insert (priv->client_fds,
+  g_hash_table_insert (priv->forwarded_windows,
                        key,
-                       client_fd);
+                       forward_data);
 
-  if (*client_fd==-1)
+  if (forward_data->client_fd==-1)
     {
       /* Not yet opened: open it */
       vnc_start (window);
-      *client_fd = vnc_fd (window);
+      forward_data->client_fd = vnc_fd (window);
     }
 
   /* make sure we have the bottom connection */
@@ -663,12 +672,7 @@ share_window (Display *dpy,
 
   /* If we receive data from VNC, send it on. */
 
-  forward_data = g_malloc(sizeof(ForwardedWindow));
-  forward_data->plugin = plugin;
-  forward_data->channel = xzibit_id;
-  forward_data->window = window;
-
-  channel = g_io_channel_unix_new (*client_fd);
+  channel = g_io_channel_unix_new (forward_data->client_fd);
   g_io_add_watch (channel,
                   G_IO_IN,
                   copy_client_to_bottom,
@@ -965,7 +969,7 @@ handle_message_to_client (MutterPlugin *plugin,
                           int length)
 {
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  int *fd;
+  ForwardedWindow *fw;
 
   if (channel==0)
     {
@@ -974,22 +978,20 @@ handle_message_to_client (MutterPlugin *plugin,
     }
 
   g_print ("This is a message for channel %d\n", channel);
-  fd = g_hash_table_lookup (priv->client_fds,
+  fw = g_hash_table_lookup (priv->forwarded_windows,
                             &channel);
 
-  if (!fd) {
+  if (!fw) {
     g_warning ("Discarding message to channel %d because it doesn't have a handler",
                channel);
     return;
   }
 
-  g_print ("Spidey-sense tells us the FD is %d\n", *fd);
-
   /* FIXME: error checking; it could run short */
 
   DEBUG_FLOW ("sent from TOP to CLIENT",
               buffer, length);
-  write (*fd, buffer, length);
+  write (fw->client_fd, buffer, length);
 }
 
 static gboolean
