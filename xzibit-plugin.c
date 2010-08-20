@@ -140,6 +140,7 @@ struct _MutterXzibitPluginPrivate
    * Forwarded windows, with connections to libvncserver.
    */
   GHashTable *forwarded_windows_by_xzibit_id;
+  GHashTable *forwarded_windows_by_x11_id;
 
   /**
    * X display we're using, if known.
@@ -402,6 +403,11 @@ start (MutterPlugin *plugin)
                            g_int_equal,
                            g_free,
                            g_free);
+  priv->forwarded_windows_by_x11_id =
+    g_hash_table_new_full (g_int_hash,
+                           g_int_equal,
+                           g_free,
+                           NULL);
 }
 
 static void
@@ -604,6 +610,13 @@ share_window (Display *dpy,
   *key = xzibit_id;
 
   g_hash_table_insert (priv->forwarded_windows_by_xzibit_id,
+                       key,
+                       forward_data);
+
+  key = g_malloc (sizeof (int));
+  *key = (int) window;
+
+  g_hash_table_insert (priv->forwarded_windows_by_x11_id,
                        key,
                        forward_data);
 
