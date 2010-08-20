@@ -728,6 +728,18 @@ share_window (Display *dpy,
 }
 
 static void
+unshare_window (Display *dpy,
+                Window window, MutterPlugin *plugin)
+{
+  g_print ("[%s] Unshare window %x...",
+           gdk_display_get_name (gdk_display_get_default()),
+           (int) window
+           );
+
+  /* stub */
+}
+
+static void
 set_sharing_state (Display *dpy,
                    Window window, int sharing_state, MutterPlugin *plugin)
 {
@@ -750,6 +762,7 @@ set_sharing_state (Display *dpy,
     case 0:
       /* we have stopped sharing this window */
       /* FIXME: deal with this case. */
+      unshare_window (dpy, window, plugin);
       break;
     }
 }
