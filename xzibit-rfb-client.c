@@ -100,6 +100,12 @@ static const GOptionEntry options[] =
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
+/**
+ * Marks a given toplevel window as "remote", using an
+ * X property.
+ *
+ * \param window  The window.
+ */
 static void
 set_window_remote (GtkWidget *window)
 {
@@ -115,6 +121,15 @@ set_window_remote (GtkWidget *window)
 		   1);
 }
 
+/**
+ * Marks a given toplevel window with its Xzibit ID.
+ *
+ * \param window        The window.
+ * \param remote_server The serial number of *this*
+ *                      connection.  The same for all
+ *                      windows managed by this program.
+ * \param id            The Xzibit ID of the window.
+ */
 static void
 set_window_id (GtkWidget *window,
 	       guint32 remote_server,
@@ -136,11 +151,22 @@ set_window_id (GtkWidget *window,
 		   2);
 }
 
+/**
+ * Called when VNC is initialised.
+ */
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 {
   /* nothing */
 }
 
+/**
+ * Adds the doppelganger cursor for a given window.
+ *
+ * \bugs  This is currently disabled, because it's
+ *        broken.  It needs to be fixed soon.
+ *
+ * \param received  The window.
+ */
 static void
 add_mpx_for_window (XzibitReceivedWindow *received)
 {
@@ -205,6 +231,13 @@ add_mpx_for_window (XzibitReceivedWindow *received)
   g_free (name);
 }
 
+/**
+ * Writes a block of data to the upstream Mutter process,
+ * with checking.
+ *
+ * \param buffer  The data to write.
+ * \param size    The size of the buffer.
+ */
 static void
 write_to_following_fd (gpointer buffer,
 		       gsize size)
@@ -217,6 +250,11 @@ write_to_following_fd (gpointer buffer,
     }
 }
 
+/**
+ * Called when data arrives from gtk-vnc.
+ *
+ * \bugs The name isn't very clear.
+ */
 static gboolean
 check_for_rfb_replies (GIOChannel *source,
 		       GIOCondition condition,
@@ -252,6 +290,9 @@ check_for_rfb_replies (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Handler for video (i.e. RFB) channels.
+ */
 static void
 handle_video_message (int channel,
 		      unsigned char *buffer,
@@ -267,6 +308,11 @@ handle_video_message (int channel,
     }
 }
 
+/**
+ * Handler for audio channels.
+ *
+ * \bugs  Not implemented.
+ */
 static void
 handle_audio_message (int channel,
 		      unsigned char *buffer,
@@ -275,6 +321,15 @@ handle_audio_message (int channel,
   g_print ("We have %d bytes of audio to play.  FIXME.\n", length);
 }
 
+/**
+ * Applies metadata to a window, with the assumption that the
+ * window is mapped and can have its metadata applied immediately.
+ *
+ * \param received     The window.
+ * \param metadata_id  The ID of the metadata (see spec)
+ * \param buffer       Pointer to a buffer holding the metadata
+ * \param length       Size of the buffer.
+ */
 static void
 apply_metadata_now (XzibitReceivedWindow *received,
 		    int metadata_id,
@@ -317,12 +372,31 @@ apply_metadata_now (XzibitReceivedWindow *received,
     }
 }
 
+/**
+ * A piece of metadata which was postponed because
+ * the window it applies to was not yet mapped; it
+ * will be applied as soon as the window maps.
+ */
 typedef struct _PostponedMetadata {
+  /**
+   * ID of the metadata (see spec)
+   */
   int id;
+  /**
+   * Length of the buffer.
+   */
   gsize length;
+  /**
+   * Pointer to a buffer of metadata.
+   */
   char *content;
 } PostponedMetadata;
 
+/**
+ * Sets our custom cursor on a particular received window.
+ *
+ * \param received  The window.
+ */
 static void
 set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
 {
@@ -352,6 +426,14 @@ set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
 		      current_pointer);
 }
 
+/**
+ * Sets our custom cursor on a particular received window;
+ * this is a wrapper for calling from "foreach" for hash tables.
+ *
+ * \param dummy1    Ignored.
+ * \param window    The window, cast to a gpointer.
+ * \param dummy2    Ignored.
+ */
 static void
 set_custom_cursor_on_received_window_hash_foreach (gpointer dummy1,
 						   gpointer window,
@@ -361,6 +443,10 @@ set_custom_cursor_on_received_window_hash_foreach (gpointer dummy1,
   set_custom_cursor_on_received_window (received);
 }
 
+/**
+ * Called when a window is exposed; applies any postponed
+ * metadata.
+ */
 static gboolean
 exposed_window (GtkWidget *widget,
 		GdkEventExpose *event,
@@ -406,6 +492,13 @@ exposed_window (GtkWidget *widget,
   return FALSE;
 }
 
+/**
+ * Marks a channel as closed.  It must not be used again
+ * after calling this function.
+ *
+ * \param data  The xzibit ID of the channel to close,
+ *              cast to a gpointer using GINT_TO_POINTER().
+ */
 static void
 close_channel (gpointer data)
 {
@@ -445,6 +538,13 @@ close_channel (gpointer data)
   write_to_following_fd (buffer, sizeof(buffer));
 }
 
+/**
+ * Opens a new video channel.
+ *
+ * \bugs  Should possibly have "video" in its name.
+ *
+ * \param channel_id  The ID of the new channel.
+ */
 static void
 open_new_channel (int channel_id)
 {
@@ -520,6 +620,17 @@ open_new_channel (int channel_id)
   add_mpx_for_window (received);
 }
 
+/**
+ * Applies metadata to a window; if the window is
+ * not mapped, stores the metadata until it is.
+ *
+ * \param metadata_id  The ID of the metadata (see spec)
+ * \param xzibit_id    The ID of the window to
+ *                     apply it to
+ * \param buffer       Pointer to a buffer holding
+ *                     the data
+ * \param length       Length of the buffer
+ */
 static void
 apply_metadata (int metadata_id,
 		int xzibit_id,
@@ -582,6 +693,14 @@ apply_metadata (int metadata_id,
     }
 }
 
+/**
+ * Handler for messages received on the control channel.
+ *
+ * \param channel  The channel ID (necessarily zero)
+ * \param buffer   Pointer to buffer containing an
+ *                 entire message
+ * \param length   Length of the buffer
+ */
 static void
 handle_control_channel_message (int channel,
 				unsigned char *buffer,
@@ -759,6 +878,11 @@ handle_control_channel_message (int channel,
     }
 }
 
+/**
+ * Handles a received xzibit message on any channel.
+ * This is a front end for several handler routines;
+ * it looks up the correct one and passes control to it.
+ */
 static void
 handle_xzibit_message (int channel,
 		       unsigned char *buffer,
@@ -788,6 +912,12 @@ handle_xzibit_message (int channel,
 		     length);
 }
 
+/**
+ * Called when data arrives from the upstream Mutter
+ * process.
+ *
+ * \bugs  The name isn't very clear.
+ */
 static gboolean
 check_for_fd_input (GIOChannel *source,
 		    GIOCondition condition,
@@ -877,6 +1007,9 @@ check_for_fd_input (GIOChannel *source,
   return TRUE;
 }
 
+/**
+ * Initialises the handlers hash table.
+ */
 static void
 prepare_message_handlers (void)
 {
@@ -909,6 +1042,9 @@ prepare_message_handlers (void)
 		       channel_zero);
 }
 
+/**
+ * Initialises appropriate X extensions.
+ */
 static void
 initialise_extensions (void)
 {
@@ -918,6 +1054,9 @@ initialise_extensions (void)
   }
 }
 
+/**
+ * The main function.
+ */
 int
 main (int argc, char **argv)
 {
@@ -958,3 +1097,5 @@ main (int argc, char **argv)
 
   gtk_main ();
 }
+
+/* EOF xzibit-rfb-client.c */
