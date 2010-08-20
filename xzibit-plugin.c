@@ -1156,16 +1156,16 @@ related_to_shared_window (Display *dpy,
     }
   if (property == NULL)
     {
-      g_warning ("%x has no %s.\n", (int)window, relationship);
+      /* g_warning ("%x has no %s.\n", (int)window, relationship); */
       return FALSE; /* no, it isn't */
     }
 
   parent = *((guint32*) property);
   XFree (property);
 
-  g_warning ("%s relation of %x is %x",
+  /* g_warning ("%s relation of %x is %x",
              relationship, (int)window,
-             parent);
+             parent); */
 
   if (XGetWindowProperty(dpy,
                          parent,
@@ -1180,13 +1180,13 @@ related_to_shared_window (Display *dpy,
                          &bytes_after,
                          &property)!=Success)
     {
-      g_warning ("can't read relationship %s\n", relationship);
+      /* g_warning ("can't read relationship %s\n", relationship); */
       return FALSE; /* we can't tell */
     }
   
   if (property == NULL)
     {
-      g_warning ("no sharing on parent, %x", (int)parent);
+      /* g_warning ("no sharing on parent, %x", (int)parent); */
       return FALSE; /* no, it isn't */
     }
 
@@ -1209,7 +1209,7 @@ share_transiency_on_map (MutterPlugin *plugin,
   guint32 *sharing;
   Display *dpy = map_event->display;
 
-  g_warning ("Transiency check for %x starting\n", (int) map_event->window);
+  /* g_warning ("Transiency check for %x starting\n", (int) map_event->window); */
 
   if (related_to_shared_window (dpy, window, "WM_TRANSIENT_FOR"))
     {
