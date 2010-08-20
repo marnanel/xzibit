@@ -33,7 +33,7 @@
 #include <rfb/rfbproto.h>
 #include <rfb/rfb.h>
 
-#define XZIBIT_PORT 7177
+#define XZIBIT_PORT 1770
 
 static char header[] = "Xz 000.001\r\n";
 

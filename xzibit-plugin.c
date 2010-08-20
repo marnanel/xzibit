@@ -30,6 +30,7 @@
 #include "mutter-plugin.h"
 #include "vnc.h"
 #include <gdk/gdk.h>
+#include <gdk/gdkx.h>
 #include <X11/extensions/XI2.h>
 #include <stdarg.h>
 
@@ -47,7 +48,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 
-#define XZIBIT_PORT 7177
+#define XZIBIT_PORT 1770
 
 #define ACTOR_DATA_KEY "MCCP-Xzibit-actor-data"
 
@@ -115,7 +116,7 @@ struct _MutterXzibitPluginPrivate
    *
    * [xzibit-rfb-client]---()=server_fd
    *                       ||
-   *                top_fd=()<--()=listening_fd (on port 7177)
+   *                top_fd=()<--()=listening_fd (on port 1770+display)
    *                        \\  ||
    *                          {TUBES}
    *                            \\
@@ -343,6 +344,11 @@ start (MutterPlugin *plugin)
       memset (&addr, 0, sizeof (addr));
       addr.sin_family = AF_INET;
       addr.sin_addr.s_addr = htonl (INADDR_ANY);
+      /* Here we *should* add the number of the current
+       * display, but getting this out of Xlib is like
+       * getting blood from a stone.  So, maybe in a
+       * later version.
+       */
       addr.sin_port = htons (XZIBIT_PORT);
 
       priv->listening_fd = socket (PF_INET,
@@ -629,8 +635,6 @@ share_window (Display *dpy,
     {
       struct sockaddr_in addr;
       GIOChannel *channel;
-
-      g_print ("Connecting to port...\n");
 
       memset (&addr, 0, sizeof (addr));
       addr.sin_family = AF_INET;
