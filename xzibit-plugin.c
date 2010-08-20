@@ -835,7 +835,11 @@ copy_server_to_top (GIOChannel *source,
   if (count<0)
     {
       perror ("xzibit");
-      /* FIXME: something more sensible than this */
+      /* FIXME: something more sensible than this.
+         Fixing this properly will involve the respawn
+         subsystem, which is not something I want to
+         do on the first release.
+      */
       g_error ("xzibit-rfb-client seems to have died");
     }
 
