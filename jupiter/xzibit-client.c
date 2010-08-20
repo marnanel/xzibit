@@ -552,3 +552,26 @@ xzibit_client_set_icon (XzibitClient *client,
 
   g_object_unref (resized_icon);
 }
+
+void
+xzibit_client_send_wall (XzibitClient *client,
+                         int error,
+                         char *message)
+{
+  guint strlength = strlen(message);
+
+  /* Should we check it's valid UTF-8, or should
+   * we leave that to the server?
+   */
+
+  send_block_header (client,
+                     CONTROL_CHANNEL,
+                     strlength + 3);
+
+  send_byte (client, COMMAND_WALL);
+  send_word (client, error);
+
+  write (client->xzibit_fd,
+         message,
+         strlength);
+}
