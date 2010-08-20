@@ -117,7 +117,6 @@ received_from_xzibit (GIOChannel *source,
         case -1:
           client->length |= buffer[i] * 256;
           client->buffer = g_malloc (client->length);
-          g_print ("(Length is %d)\n", client->length);
           break;
 
 	default:
@@ -146,9 +145,6 @@ received_from_xzibit (GIOChannel *source,
                       int *rfb_fd = g_hash_table_lookup (client->vnc_fds,
                                                          &(client->channel));
                       
-                      g_print ("Copying %d bytes from xzibit to VNC on fd %d\n",
-                               client->length, *rfb_fd);
-
                       write (*rfb_fd, client->buffer, client->length);
                     }
 
@@ -212,8 +208,6 @@ copy_vnc_to_xzibit (GIOChannel *source,
   int count;
 
   count = read (fd, &buffer, sizeof(buffer));
-
-  g_print ("Copying %d bytes from VNC to xzibit\n", count);
 
   send_block_header (client,
                      1, /* FIXME: this should not be hard-coded */

@@ -333,17 +333,12 @@ start (MutterPlugin *plugin)
        * created by the other process running
        * on the same machine.
        */
-      g_print ("[%s] Here we would connect as a client.\n",
-               gdk_display_get_name (gdk_display_get_default()));
       priv->listening_fd = -1;
     }
   else
     {
       struct sockaddr_in addr;
       int one = 1;
-
-      g_print ("[%s] Here we listen as a server as usual.\n",
-               gdk_display_get_name (gdk_display_get_default()));
 
       memset (&addr, 0, sizeof (addr));
       addr.sin_family = AF_INET;
@@ -392,9 +387,6 @@ start (MutterPlugin *plugin)
                       G_IO_IN,
                       accept_connections,
                       plugin);
-
-      g_print ("Socket %d is now LISTENING\n",
-               priv->listening_fd);
     }
 
   priv->bottom_fd = -1;

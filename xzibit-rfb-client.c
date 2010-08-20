@@ -297,11 +297,6 @@ apply_metadata_now (XzibitReceivedWindow *received,
 	memcpy (copy, buffer, length);
 	copy[length] = 0;
 
-	g_print ("[*** [%s] *** %d]\n", copy, length);
-
-	for (i=0; i<length+1; i++) {
-	  g_print ("%02x %02x\n", copy[i], buffer[i]);
-	}
 	gtk_window_set_title (target,
 			      copy);
 	g_free (copy);
@@ -534,15 +529,11 @@ apply_metadata (int metadata_id,
 {
   XzibitReceivedWindow *received;
 
-  g_print ("Setting metadata %d on window %d; %d bytes\n",
-	   metadata_id, xzibit_id, length);
-
   received = g_hash_table_lookup (received_windows,
 				  &xzibit_id);
 
   if (received)
     {
-      g_print ("Known.\n");
       apply_metadata_now (received,
 			  metadata_id,
 			  buffer,
@@ -956,7 +947,6 @@ main (int argc, char **argv)
   if (following_fd!=-1)
     {
       GIOChannel *channel;
-      g_print ("Following FD %d\n", following_fd);
       channel = g_io_channel_unix_new (following_fd);
       g_io_add_watch (channel,
                       G_IO_IN,
