@@ -406,6 +406,45 @@ exposed_window (GtkWidget *widget,
 }
 
 static void
+close_channel (gpointer data)
+{
+  int channel_id = GPOINTER_TO_INT (data);
+  XzibitReceivedWindow *received =
+    g_hash_table_lookup (received_windows,
+			 &channel_id);
+  char buffer[7];
+
+  if (!received)
+    return;
+
+  /* Firstly, if the window's not closed, close it.
+     (This will also close the gtk-vnc instance that's
+     running this window.) */
+
+  gtk_widget_destroy (GTK_WIDGET (received->window));
+
+  /* Remove the record of this channel.
+     (This also frees "received", so don't use it
+     afterwards.) */
+
+  g_hash_table_remove (received_windows,
+		       received);
+
+  /* And tell upstream we've done so. */
+
+  buffer[0] = 0; /* CONTROL_CHANNEL */
+  buffer[1] = 0; /* ditto */
+  buffer[2] = 3; /* length of this message */
+  buffer[3] = 0;
+
+  buffer[4] = 2; /* COMMAND_CLOSE */
+  buffer[5] = channel_id % 256;
+  buffer[6] = channel_id / 256;
+
+  write_to_following_fd (buffer, sizeof(buffer));
+}
+
+static void
 open_new_channel (int channel_id)
 {
   XzibitReceivedWindow *received;
@@ -460,7 +499,6 @@ open_new_channel (int channel_id)
 	      sockets);
 
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-  g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
 
   /* for now, it's not resizable */
   gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
@@ -470,7 +508,10 @@ open_new_channel (int channel_id)
      ALL windows if the VNC for ONE gets
      disconnected.
   */
-  g_signal_connect(vnc, "vnc-disconnected", G_CALLBACK(gtk_main_quit), NULL);
+  g_signal_connect (window, "delete_event",
+		    G_CALLBACK (close_channel), NULL);
+  g_signal_connect(vnc, "vnc-disconnected",
+		   G_CALLBACK (close_channel), NULL);
 
   vnc_display_open_fd (VNC_DISPLAY (vnc), sockets[1]);
 
