@@ -49,6 +49,8 @@ char* fd_read_buffer = NULL;
 
 GdkCursor *avatar_cursor = NULL;
 
+typedef void (MessageHandler) (int, unsigned char*, unsigned int);
+
 /**
  * What we know about each received window.
  */
@@ -73,7 +75,11 @@ typedef struct {
    * the connection.
    */
   int doppelganger_pointer;
-
+  /**
+   * The function which will deal with messages received
+   * for this window.
+   */
+  MessageHandler *handler;
 } XzibitReceivedWindow;
 
 GHashTable *received_windows = NULL;
@@ -244,9 +250,6 @@ check_for_rfb_replies (GIOChannel *source,
   write_to_following_fd (buffer, count);
 }
 
-typedef void (MessageHandler) (int, unsigned char*, unsigned int);
-GHashTable *message_handlers = NULL;
-
 static void
 handle_video_message (int channel,
 		      unsigned char *buffer,
@@ -327,10 +330,14 @@ static void
 set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
 {
   int current_pointer;
-  Window window = GDK_WINDOW_XID (GTK_WIDGET (received->window)->window);
+  Window window;
 
-  if (!avatar_cursor || received->doppelganger_pointer==-1)
+  if (!avatar_cursor ||
+      received->doppelganger_pointer==-1 ||
+      received->window == NULL)
     return;
+
+  window = GDK_WINDOW_XID (GTK_WIDGET (received->window)->window);
 
   XIGetClientPointer (gdk_x11_get_default_xdisplay (),
 		      window,
@@ -346,8 +353,6 @@ set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
   XISetClientPointer (gdk_x11_get_default_xdisplay (),
 		      window,
 		      current_pointer);
-
-  g_print(">>>>>>>>>>> SET CUSTOM CURSOR <<<<<<<<<<<<\n");
 }
 
 static void
@@ -457,15 +462,6 @@ open_new_channel (int channel_id)
   g_print ("Opening RFB channel %x\n",
 	   channel_id);
 
-  if (received_windows==NULL)
-    {
-      received_windows =
-	g_hash_table_new_full (g_int_hash,
-			       g_int_equal,
-			       g_free,
-			       g_free);
-    }
-
   if (g_hash_table_lookup (received_windows,
                            &channel_id))
     {
@@ -485,13 +481,7 @@ open_new_channel (int channel_id)
 		       key,
 		       received);
 
-  key =
-    g_malloc (sizeof (int));
-  *key = channel_id;
-
-  g_hash_table_insert (message_handlers,
-		       key,
-		       handle_video_message);
+  received->handler = handle_video_message;
 
   socketpair (AF_LOCAL,
 	      SOCK_STREAM,
@@ -617,11 +607,12 @@ handle_control_channel_message (int channel,
     {
     case 1: /* Open */
       if (length!=7) {
-	g_print ("Open message; bad length (%d)\n",
+	g_warning ("Open message; bad length (%d)\n",
 		 length);
 	return;
       }
       
+      g_warning ("Opening new channel");
       open_new_channel (buffer[5]|buffer[6]*256);
       break;
 
@@ -632,10 +623,7 @@ handle_control_channel_message (int channel,
 	if (victim==0)
 	  return; /* that's silly */
 
-	g_hash_table_remove (message_handlers,
-			     &victim);
-
-	/* FIXME: should also kill the associated window */
+	close_channel (GINT_TO_POINTER (victim));
       }
       break;
 
@@ -689,10 +677,9 @@ handle_control_channel_message (int channel,
 					  pixbuf,
 					  0, 0);
 
-	    if (received_windows)
-	      g_hash_table_foreach (received_windows,
-				    set_custom_cursor_on_received_window_hash_foreach,
-				    NULL);
+	    g_hash_table_foreach (received_windows,
+				  set_custom_cursor_on_received_window_hash_foreach,
+				  NULL);
 	  }
       }
       break;
@@ -703,13 +690,25 @@ handle_control_channel_message (int channel,
 	 * video channel at present; we just mix all
 	 * audio channels together */
 
-	int* audio = g_malloc (sizeof (int));
+	int *audio = g_malloc (sizeof (int));
+	XzibitReceivedWindow *audio_channel =
+	  g_malloc (sizeof (XzibitReceivedWindow));
 
 	*audio = buffer[3]|buffer[4]*256;
 
-	g_hash_table_insert (message_handlers,
+	/* Most of the fields are ignored for
+	   audio channels. */
+
+	audio_channel->fd = -1;
+	audio_channel->window = NULL;
+	audio_channel->doppelganger_pointer = 0;
+
+	audio_channel->id = *audio;
+	audio_channel->handler = handle_audio_message;
+
+	g_hash_table_insert (received_windows,
 			     audio,
-			     handle_audio_message);
+			     audio_channel);
       }
       break;
 
@@ -721,7 +720,6 @@ handle_control_channel_message (int channel,
       g_warning ("Unknown control channel opcode %x\n",
 		 opcode);
     }
-  
 }
 
 static void
@@ -729,23 +727,28 @@ handle_xzibit_message (int channel,
 		       unsigned char *buffer,
 		       unsigned int length)
 {
-  MessageHandler *handler;
-  g_print ("x-r-c: Handling xzibit message of %d bytes on channel %d\n",
-	   length, channel);
+  XzibitReceivedWindow *received;
 
-  handler = g_hash_table_lookup (message_handlers,
-				 &channel);
+  received = g_hash_table_lookup (received_windows,
+				  &channel);
 
-  if (!handler)
+  if (!received)
     {
       g_warning ("A message was received for channel %d, which is not open.",
 		 channel);
       return;
     }
 
-  handler (channel,
-	   buffer,
-	   length);
+  if (!received->handler)
+    {
+      g_warning ("A message was received for channel %d, which has no handler.",
+		 channel);
+      return;
+    }
+
+  received->handler (channel,
+		     buffer,
+		     length);
 }
 
 static gboolean
@@ -810,7 +813,6 @@ check_for_fd_input (GIOChannel *source,
 
 	    case 1:
 	      fd_read_length |= buffer[i]*256;
-	      g_print ("Read length is %d\n", fd_read_length);
 	      fd_read_buffer = g_malloc (fd_read_length);
 	      fd_read_through = 0;
 	      fd_read_state = STATE_SEEN_LENGTH;
@@ -842,24 +844,32 @@ static void
 prepare_message_handlers (void)
 {
   int *zero;
+  XzibitReceivedWindow *channel_zero;
 
-  if (message_handlers)
+  if (received_windows)
     return;
 
-  message_handlers =
+  received_windows =
     g_hash_table_new_full (g_int_hash,
 			   g_int_equal,
 			   g_free,
 			   g_free);
 
-  g_print ("Installing channel zero\n");
-
   zero = g_malloc (sizeof (int));
   *zero = 0;
 
-  g_hash_table_insert (message_handlers,
+  channel_zero = g_malloc (sizeof (XzibitReceivedWindow));
+
+  channel_zero->fd = -1;
+  channel_zero->window = NULL;
+  channel_zero->doppelganger_pointer = 0;
+
+  channel_zero->id = 0;
+  channel_zero->handler = handle_control_channel_message;
+
+  g_hash_table_insert (received_windows,
 		       zero,
-		       handle_control_channel_message);
+		       channel_zero);
 }
 
 static void
@@ -904,6 +914,10 @@ main (int argc, char **argv)
                       G_IO_IN,
                       check_for_fd_input,
                       NULL);
+    }
+  else
+    {
+      g_warning ("No FD given to follow; we won't be able to do much");
     }
 
 #if 0
