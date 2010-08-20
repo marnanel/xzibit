@@ -642,7 +642,31 @@ handle_control_channel_message (int channel,
       break;
 
     case 4: /* Wall */
-      g_print ("Wall; ignored for now\n");
+      {
+	int code;
+
+	if (length<3)
+	  return; /* ignore */
+
+	code = buffer[1]|buffer[2]*256;
+
+	if (g_utf8_validate (buffer+3,
+			     -1, NULL))
+	  {
+	    GtkWidget *message =
+	      gtk_message_dialog_new (NULL, 0,
+				      code? GTK_MESSAGE_ERROR: GTK_MESSAGE_INFO,
+				      GTK_BUTTONS_CLOSE,
+				      "%s (%d)",
+				      buffer+3, code);
+
+	    g_signal_connect_swapped (message, "response",
+				      G_CALLBACK (gtk_widget_destroy),
+				      message);
+
+	    gtk_widget_show (message);
+	  }
+      }
       break;
 
     case 5: /* Respawn */
