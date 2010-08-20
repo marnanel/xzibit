@@ -137,5 +137,18 @@ void xzibit_client_move_pointer (XzibitClient *client,
                                  int channel,
                                  int x,
                                  int y);
+/**
+ * Displays an alert dialogue on the remote host.
+ * (The remote host may choose to ignore this.)
+ *
+ * \param client  The client.
+ * \param error   An ill-defined error ID, but at least
+ *                we specify that you should use 0 for no error.
+ * \param message A UTF-8 formatted message to display.
+ */
+void xzibit_client_send_wall (XzibitClient *client,
+                              int error,
+                              char *message);
+
 
 #endif
