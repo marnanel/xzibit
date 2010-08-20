@@ -388,7 +388,6 @@ exposed_window (GtkWidget *widget,
 	{
 	  PostponedMetadata *metadata = cursor->data;
 	  
-	  g_print ("Postponed...\n");
 	  apply_metadata_now (received,
 			      metadata->id,
 			      metadata->content,
