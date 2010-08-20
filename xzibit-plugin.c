@@ -814,7 +814,6 @@ set_sharing_state (Display *dpy,
 
     case 0:
       /* we have stopped sharing this window */
-      /* FIXME: deal with this case. */
       unshare_window (dpy, window, plugin);
       break;
     }
