@@ -674,7 +674,6 @@ share_window (Display *dpy,
   send_from_bottom (plugin,
                     0, /* control channel */
                     1, /* opcode */
-                    127, 0, 0, 1, /* IP address (ignored) */
                     xzibit_id % 256,
                     xzibit_id / 256,
                     -1);

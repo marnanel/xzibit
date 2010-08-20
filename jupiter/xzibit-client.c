@@ -239,13 +239,9 @@ xzibit_client_open_channel (XzibitClient *client)
 
   send_block_header (client,
                      CONTROL_CHANNEL,
-                     7);
+                     3);
 
   send_byte (client, COMMAND_OPEN);
-  send_byte (client, 127);
-  send_byte (client, 0);
-  send_byte (client, 0);
-  send_byte (client, 1);
   send_word (client, client->highest_channel);
 
   fsync (client->xzibit_fd);

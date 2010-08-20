@@ -598,14 +598,13 @@ handle_control_channel_message (int channel,
   switch (opcode)
     {
     case 1: /* Open */
-      if (length!=7) {
+      if (length!=3) {
 	g_warning ("Open message; bad length (%d)\n",
 		 length);
 	return;
       }
       
-      g_warning ("Opening new channel");
-      open_new_channel (buffer[5]|buffer[6]*256);
+      open_new_channel (buffer[1]|buffer[2]*256);
       break;
 
     case 2: /* Close */
