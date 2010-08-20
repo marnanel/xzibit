@@ -121,7 +121,7 @@ struct _MutterXzibitPluginPrivate
    *                            \\
    *                             ()=bottom_fd
    *                             ||
-   *            [libvncserver]---()=client_fd (in forwarded_windows)
+   *            [libvncserver]---()=client_fd (in forwarded_windows*)
    */
 
   /**
@@ -139,7 +139,7 @@ struct _MutterXzibitPluginPrivate
   /**
    * Forwarded windows, with connections to libvncserver.
    */
-  GHashTable *forwarded_windows;
+  GHashTable *forwarded_windows_by_xzibit_id;
 
   /**
    * X display we're using, if known.
@@ -397,7 +397,7 @@ start (MutterPlugin *plugin)
     }
 
   priv->bottom_fd = -1;
-  priv->forwarded_windows =
+  priv->forwarded_windows_by_xzibit_id =
     g_hash_table_new_full (g_int_hash,
                            g_int_equal,
                            g_free,
@@ -603,7 +603,7 @@ share_window (Display *dpy,
   key = g_malloc (sizeof (int));
   *key = xzibit_id;
 
-  g_hash_table_insert (priv->forwarded_windows,
+  g_hash_table_insert (priv->forwarded_windows_by_xzibit_id,
                        key,
                        forward_data);
 
@@ -978,7 +978,7 @@ handle_message_to_client (MutterPlugin *plugin,
     }
 
   g_print ("This is a message for channel %d\n", channel);
-  fw = g_hash_table_lookup (priv->forwarded_windows,
+  fw = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
                             &channel);
 
   if (!fw) {
