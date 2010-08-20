@@ -646,7 +646,14 @@ handle_control_channel_message (int channel,
       break;
 
     case 5: /* Respawn */
-      g_print ("Respawn; ignored for now\n");
+      if (length!=5)
+	{
+	  g_warning ("Attempt to send respawn ID with bad block size");
+	  return;
+	}
+      /* we're not storing this at present, because
+         it's not clear it will be useful on this side.
+      */
       break;
       
     case 6: /* Avatar */
