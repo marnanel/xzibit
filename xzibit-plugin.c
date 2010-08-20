@@ -759,7 +759,6 @@ copy_server_to_top (GIOChannel *source,
                        GIOCondition condition,
                        gpointer data)
 {
-  /* FIXME: what should the return result be? */
   XzibitRfbClient *server_details = (XzibitRfbClient*) data;
   MutterPlugin *plugin = server_details->plugin;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
