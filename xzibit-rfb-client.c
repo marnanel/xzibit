@@ -199,6 +199,18 @@ add_mpx_for_window (XzibitReceivedWindow *received)
   g_free (name);
 }
 
+static void
+write_to_following_fd (gpointer buffer,
+		       gsize size)
+{
+  int result = write (following_fd,
+		      buffer, size);
+  if (result < size)
+    {
+      g_warning ("Cannot communicate with upstream process.  Things will break.");
+    }
+}
+
 static gboolean
 check_for_rfb_replies (GIOChannel *source,
 		       GIOCondition condition,
@@ -228,9 +240,8 @@ check_for_rfb_replies (GIOChannel *source,
   header[2] = count % 256;
   header[3] = count / 256;
 
-  /* FIXME: check results */
-  write (following_fd, header, sizeof (header));
-  write (following_fd, buffer, count);
+  write_to_following_fd (header, sizeof (header));
+  write_to_following_fd (buffer, count);
 }
 
 typedef void (MessageHandler) (int, unsigned char*, unsigned int);
