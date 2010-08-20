@@ -573,6 +573,8 @@ copy_client_to_bottom (GIOChannel *source,
                            forward_data->channel,
                            buffer,
                            count);
+
+  return TRUE;
 }
 
 static void
@@ -820,6 +822,8 @@ copy_server_to_top (GIOChannel *source,
   write (server_details->top_fd,
          buffer,
          count);
+
+  return TRUE;
 }
 
 static gboolean
@@ -957,6 +961,8 @@ accept_connections (GIOChannel *source,
                   G_IO_IN,
                   copy_top_to_server,
                   server_details);
+
+  return TRUE;
 }
 
 static void

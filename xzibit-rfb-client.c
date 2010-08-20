@@ -248,6 +248,8 @@ check_for_rfb_replies (GIOChannel *source,
 
   write_to_following_fd (header, sizeof (header));
   write_to_following_fd (buffer, count);
+
+  return TRUE;
 }
 
 static void
@@ -883,7 +885,7 @@ check_for_fd_input (GIOChannel *source,
       
     }
 
-  /* FIXME: return value?? */
+  return TRUE;
 }
 
 static void
