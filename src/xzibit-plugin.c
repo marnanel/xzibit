@@ -525,7 +525,11 @@ send_from_bottom (MutterPlugin *plugin,
   DEBUG_FLOW ("sent normal from BOTTOM towards TOP",
               buffer, count);
 
-  write (priv->bottom_fd, buffer, count+4);
+  if (write (priv->bottom_fd, buffer, count+4)!=count+4)
+    {
+      g_warning ("Could not send message; things may break");
+    }
+
   fsync (priv->bottom_fd);
 
   g_free (buffer);
@@ -556,8 +560,12 @@ send_buffer_from_bottom (MutterPlugin *plugin,
   header_buffer[2] = length % 256;
   header_buffer[3] = length / 256;
 
-  write (priv->bottom_fd, header_buffer, 4);
-  write (priv->bottom_fd, buffer, length);  
+  if (write (priv->bottom_fd, header_buffer, 4)!=4 ||
+          write (priv->bottom_fd, buffer, length)!=length)
+    {
+      g_warning ("Could not send buffer; things may break");
+    }
+
   fsync (priv->bottom_fd);
 }
 
@@ -596,10 +604,14 @@ send_metadata_from_bottom (MutterPlugin *plugin,
   preamble[7] = metadata_type % 256;
   preamble[8] = metadata_type / 256;
 
-  write (priv->bottom_fd, preamble,
-         sizeof(preamble));
-  write (priv->bottom_fd, metadata,
-         metadata_length);  
+  if (write (priv->bottom_fd, preamble,
+              sizeof(preamble))!=sizeof(preamble) ||
+          write (priv->bottom_fd, metadata,
+              metadata_length)!=metadata_length)
+    {
+      g_warning ("Could not write metadata; things may break");
+    }
+
   fsync (priv->bottom_fd);
 }
 
@@ -1030,9 +1042,13 @@ copy_top_to_server (GIOChannel *source,
     {
       DEBUG_FLOW ("sent to x-r-c", buffer, count);
 
-      write (server_details->server_fd,
-             buffer,
-             count);
+      if (write (server_details->server_fd,
+                  buffer,
+                  count)!=count)
+        {
+          g_warning ("Could not send buffer to display program; "
+                  "things may break.");
+        }
     }
   else
     {
@@ -1071,9 +1087,14 @@ accept_connections (GIOChannel *source,
   DEBUG_FLOW ("sending header",
               xzibit_header,
               sizeof(xzibit_header)-1);
-  write (server_details->top_fd,
-         xzibit_header,
-         sizeof(xzibit_header)-1 /* no trailing null */);
+  if (write (server_details->top_fd,
+              xzibit_header,
+              sizeof(xzibit_header)-1 /* no trailing null */)
+          !=sizeof(xzibit_header)-1)
+    {
+      g_warning ("Could not write header to remote socket; "
+              "things will break");
+    }
   fsync (server_details->top_fd);
 
   channel = g_io_channel_unix_new (server_details->top_fd);
@@ -1118,7 +1139,11 @@ handle_message_to_client (MutterPlugin *plugin,
 
   DEBUG_FLOW ("sent from TOP to CLIENT",
               buffer, length);
-  write (fw->client_fd, buffer, length);
+  if (write (fw->client_fd, buffer, length)!=length)
+    {
+      g_warning ("Could not send received data to client; "
+              "things will break.");
+    }
 }
 
 /**
