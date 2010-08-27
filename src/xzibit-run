@@ -12,7 +12,6 @@ import socket
 from subprocess import Popen, PIPE
 import getopt
 
-pidsfile = '/tmp/xzibit-pids'
 stderr = file('/tmp/xzibit-stderr', 'a')
 verbose = False
 test = 'basic'
@@ -31,6 +30,7 @@ def usage():
     print 'Switches:'
     print '  --test foo'
     print '      run test foo'
+    print '      (use --test basic to set up but not run tests)'
     print '  --list'
     print '      list tests'
     print '  --autoshare x,y,z'
@@ -162,24 +162,6 @@ if options.has_key('--autoshare'):
 
 if options.has_key('--events'):
     autoshare_switches.append('--events')
-
-################################################################
-
-# Make sure we're up to date.
-
-if os.system("make -s")!=0:
-    print 'Make failed.'
-    abort()
-
-need_update = False
-
-plugin_date = os.path.getmtime('/usr/local/lib/mutter/plugins/xzibit.so')
-for d in [os.path.getmtime(x) for x in ('xzibit-plugin.o', 'vnc.o')]:
-    if d > plugin_date:
-        need_update = True
-
-if need_update:
-    os.system('make install')
 
 ################################################################
 
