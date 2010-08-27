@@ -1,3 +1,5 @@
+bin_SCRIPTS = xzibit-run
+
 bin_PROGRAMS = xzibit-toggle
 xzibit_toggle_SOURCES = xzibit-toggle.c
 xzibit_toggle_CPPFLAGS = @X11_CFLAGS@
