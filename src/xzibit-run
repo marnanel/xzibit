@@ -181,7 +181,9 @@ launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
 # FIXME: the stderr of these processes needs to be monitored
 # to check whether it contains an error saying xzibit could
 # not be loaded
-mutter = ['mutter', '--replace', '--sync', '--display']
+mutter = ['mutter', '--replace',
+        # '--sync',  # this segfaults current Mutter
+        '--display']
 if options.has_key('--strace'):
     mutter = ['strace', '-f', '-e', 'trace=file']+mutter
 launch(mutter+[':3'], test_as_client=True)
