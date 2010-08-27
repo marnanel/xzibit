@@ -6,6 +6,7 @@ AC_CONFIG_SRCDIR(src/xzibit-plugin.c)
 AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE
+AM_PROG_CC_C_O
 
 dnl We don't want any static libraries.
 LT_INIT([disable-static])
@@ -29,6 +30,10 @@ AC_SUBST([MUTTER_PLUGINS_LIBS])
 PKG_CHECK_MODULES([GTK_VNC], [gtk-vnc-1.0])
 AC_SUBST([GTK_VNC_CFLAGS])
 AC_SUBST([GTK_VNC_LIBS])
+
+PKG_CHECK_MODULES([X11], [x11])
+AC_SUBST([X11_CFLAGS])
+AC_SUBST([X11_LIBS])
 
 AC_OUTPUT(Makefile src/Makefile)
 
