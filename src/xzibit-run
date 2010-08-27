@@ -1,0 +1,282 @@
+#!/usr/bin/python
+#
+# Test script for xzibit.
+#
+# Thomas Thurman, July 2010.
+
+import os
+import sys
+import time
+import signal
+import socket
+from subprocess import Popen, PIPE
+import getopt
+
+pidsfile = '/tmp/xzibit-pids'
+stderr = file('/tmp/xzibit-stderr', 'a')
+verbose = False
+test = 'basic'
+# List of the tests we support; don't include "basic"
+# since that's not really a test.
+tests = {
+    'key': 'Send a keystroke',
+    'keybehind': 'Send a keystroke to an unfocused window',
+    'click': 'Send a mouse click',
+    'clickbehind': 'Send a mouse click to an unfocused window',
+}
+
+def usage():
+    print 'Usage:'
+    print '  ./xzibit-run [switches]'
+    print 'Switches:'
+    print '  --test foo'
+    print '      run test foo'
+    print '  --list'
+    print '      list tests'
+    print '  --autoshare x,y,z'
+    print '      send these comma-separated switches to autoshare'
+    print '  --events'
+    print '      list events on the source window'
+    print '  --strace'
+    print '      trace filesystem calls from the mutter processes'
+    print '  --verbose'
+    print '      be verbose; specifically, show stderr of mutter processes'
+
+def banner():
+    print ' - = - X Z I B I T - = -'
+
+def abort():
+    print 'Aborting.'
+    sys.exit(2)
+
+def launch(args, stdout=None, test_as_client=False):
+    if verbose:
+        devnull = None
+    else:
+        devnull = file('/dev/null')
+
+    envvar = 'XZIBIT_TEST_AS_CLIENT'
+        
+    env = os.environ
+    if test_as_client:
+        env[envvar] = '1'
+        # make sure the server has time to
+        # start up
+        time.sleep(1)
+    elif env.has_key(envvar):
+        del env[envvar]
+        
+    p = Popen(args, stdout=stdout, stderr=devnull, env=env)
+    if p.returncode > 0:
+        print 'When I ran the command ',command
+        print 'I was told: ',p.returncode
+        print 'This was unexpected.'
+        abort()
+    file(pidsfile, 'a').write("%d\n" % (p.pid,))
+
+def test_x_server_active(display):
+    filename = '/tmp/.X%d-lock' % (display,)
+    if os.path.exists(filename):
+        test = os.system("DISPLAY=:%d xdpyinfo >/dev/null 2>/dev/null" % (display,))
+
+        if test==0:
+            print 'An X server for display :%d is running.' % (display,)
+            print 'Please close it and try again.'
+            print "If it isn't, please delete the file %s ." % (filename,)
+            abort()
+
+def succeed(whether, diagnostic=None):
+    if whether:
+        print ' * * * P A S S * * *'
+    else:
+        print ' * * * F A I L * * *'
+
+    if diagnostic:
+        print diagnostic
+
+    if whether:
+        sys.exit(0)
+    else:
+        sys.exit(1)
+
+def tidy_up():
+    if os.path.exists(pidsfile):
+        for pid in file(pidsfile,'r').read().split('\n'):
+            try:
+                pid = int(pid)
+                os.kill(pid, signal.SIGKILL)
+            except:
+                pass
+        file(pidsfile, 'w').write('')
+
+banner()
+
+################################################################
+# Parse command-line options.
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "",
+                               ["test=", "autoshare=", "events",
+                                "list", "verbose", "strace",
+                                "help"])
+except getopt.GetoptError, err:
+    print str(err)
+    usage()
+    sys.exit(2)
+
+options = {}
+for (opt, arg) in opts:
+    options[opt] = arg
+
+if options.has_key('--help') or options=={}:
+    usage()
+    sys.exit(0)
+
+if options.has_key('--verbose') or options.has_key('--strace'):
+    verbose = True
+
+if options.has_key('--list'):
+    for test in sorted(tests):
+        print '%s\t%s' % (test, tests[test])
+    sys.exit(0)
+
+if options.has_key('--test'):
+    test = options['--test']
+
+# Some tests force some options.
+
+if test in ('key', 'keybehind',
+            'click', 'clickbehind'):
+    options['--events'] = ''
+
+# Check they're asking for a real test.
+
+if not test in tests and test!='basic':
+    print 'Test %s is not known.' % (test)
+    abort()
+
+autoshare_switches = []
+
+if options.has_key('--autoshare'):
+    autoshare_switches.extend(['--'+x for x in options['--autoshare'].split(',')])
+
+if options.has_key('--events'):
+    autoshare_switches.append('--events')
+
+################################################################
+
+# Make sure we're up to date.
+
+if os.system("make -s")!=0:
+    print 'Make failed.'
+    abort()
+
+need_update = False
+
+plugin_date = os.path.getmtime('/usr/local/lib/mutter/plugins/xzibit.so')
+for d in [os.path.getmtime(x) for x in ('xzibit-plugin.o', 'vnc.o')]:
+    if d > plugin_date:
+        need_update = True
+
+if need_update:
+    os.system('make install')
+
+################################################################
+
+# optionally, we could call tidy_up here
+# to close old Xephyr sessions before we
+# start.
+# tidy_up()
+
+test_x_server_active(3)
+test_x_server_active(4)
+
+# -screen HAS to have a height value of 480 or it messes up
+# the nested server.  This is apparently known about.
+
+launch(['Xephyr','-screen','200x480',':3','-title','xzibit :3'])
+launch(['Xephyr','-screen','200x480',':4','-title','xzibit :4'])
+
+time.sleep(1) # give them a moment to load
+
+# Xephyr doesn't and won't support -geometry
+# http://bugs.freedesktop.org/show_bug.cgi?id=12221
+launch(['wmctrl','-r','xzibit :3','-e','0,0,0,-1,-1'])
+launch(['wmctrl','-r','xzibit :4','-e','0,220,0,-1,-1'])
+
+# Move the terminal as well.  (Should have a way to turn this off)
+screen_width = os.popen('xwininfo -root|grep Width').readline()[9:]
+screen_height = os.popen('xwininfo -root|grep Height').readline()[10:]
+launch(['wmctrl', '-x', '-r', 'Gnome-terminal', '-e',
+        '0,450,0,%d,%d' % (int(screen_width)-450,
+                           int(screen_height)-100),
+        '-b', 'remove,maximized_vert,maximized_horz'])
+
+# FIXME: the stderr of these processes needs to be monitored
+# to check whether it contains an error saying xzibit could
+# not be loaded
+mutter = ['../src/mutter', '--replace', '--sync', '--display']
+if options.has_key('--strace'):
+    mutter = ['strace', '-f', '-e', 'trace=file']+mutter
+launch(mutter+[':3'], test_as_client=True)
+launch(mutter+[':4'])
+
+time.sleep(1)
+
+# Give the terminal focus again.
+launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
+
+# Here we tried to add wallpaper to differentiate them visually
+# but mutter doesn't like it
+
+autoshare_args = ['./autoshare']
+autoshare_args.extend(autoshare_switches)
+events = file('/tmp/xzibit-events', 'w')
+autoshare_args.extend(['--display', ':3'])
+
+launch(autoshare_args, stdout=events)
+
+if test in ('keybehind', 'clickbehind'):
+    time.sleep(3)
+    # FIXME: possibly we shouldn't rely on
+    # having xlogo around?
+    launch(['xlogo', '-display', ':3'])
+    time.sleep(3)
+
+if test in ('key', 'keybehind'):
+    time.sleep(10)
+    os.system('DISPLAY=:4 ./type-a-key')
+    events.close()
+    events = file('/tmp/xzibit-events','r').readlines()
+
+    good = 0
+    bad = 0
+
+    for event in events:
+        if 'keysym' in event:
+            print event
+            if 'keysym 0x63, c' in event:
+                good += 1
+            else:
+                bad += 1
+
+    if good==0 and bad==0:
+        success = False
+        diagnostic = 'The keystroke did not arrive.'
+    elif bad==0:
+        success = True
+        diagnostic = None
+    else:
+        success = False
+        diagnostic = 'The keystroke arrived but was misinterpreted.'
+
+    succeed(success, diagnostic)
+elif test in ('click', 'clickbehind'):
+    time.sleep(10)
+    os.system('DISPLAY=:4 ./click-the-mouse')
+    events.close()
+    events = file('/tmp/xzibit-events','r').readlines()
+    print events
+
+if test!='basic':
+    tidy_up()
