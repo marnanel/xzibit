@@ -97,6 +97,7 @@ struct _MutterXzibitPluginClass
   MutterPluginClass parent_class;
 };
 
+static void start (MutterPlugin *plugin);
 static gboolean xevent_filter (MutterPlugin *plugin,
                                XEvent      *event);
 
@@ -459,7 +460,6 @@ mutter_xzibit_plugin_class_init (MutterXzibitPluginClass *klass)
   gobject_class->set_property    = mutter_xzibit_plugin_set_property;
   gobject_class->get_property    = mutter_xzibit_plugin_get_property;
 
-  plugin_class->start            = start;
   plugin_class->xevent_filter    = xevent_filter;
 
   g_type_class_add_private (gobject_class, sizeof (MutterXzibitPluginPrivate));
@@ -1377,6 +1377,12 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
 {
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   int i;
+  static gboolean first = TRUE;
+
+  if (first) {
+      start (plugin);
+      first = FALSE;
+  }
 
   gdk_error_trap_push ();
 
