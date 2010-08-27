@@ -1,9 +1,13 @@
 bin_SCRIPTS = xzibit-run
 
-bin_PROGRAMS = xzibit-toggle
+bin_PROGRAMS = xzibit-toggle xzibit-autoshare
 xzibit_toggle_SOURCES = xzibit-toggle.c
 xzibit_toggle_CPPFLAGS = @X11_CFLAGS@
 xzibit_toggle_LDADD = @X11_LIBS@
+
+xzibit_autoshare_SOURCES = xzibit-autoshare.c
+xzibit_autoshare_CPPFLAGS = -g @GDK_CFLAGS@ @GTK_CFLAGS@
+xzibit_autoshare_LDADD = @GDK_LIBS@ @GTK_LIBS@
 
 pkglibexec_PROGRAMS = xzibit-rfb-client
 xzibit_rfb_client_SOURCES = xzibit-rfb-client.c xzibit-rfb-client.h

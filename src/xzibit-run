@@ -195,7 +195,7 @@ launch(['wmctrl', '-x', '-a', 'Gnome-terminal'])
 # Here we tried to add wallpaper to differentiate them visually
 # but mutter doesn't like it
 
-autoshare_args = ['./autoshare']
+autoshare_args = ['xzibit-autoshare']
 autoshare_args.extend(autoshare_switches)
 events = file('/tmp/xzibit-events', 'w')
 autoshare_args.extend(['--display', ':3'])
