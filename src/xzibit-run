@@ -72,7 +72,6 @@ def launch(args, stdout=None, test_as_client=False):
         print 'I was told: ',p.returncode
         print 'This was unexpected.'
         abort()
-    file(pidsfile, 'a').write("%d\n" % (p.pid,))
 
 def test_x_server_active(display):
     filename = '/tmp/.X%d-lock' % (display,)
@@ -98,16 +97,6 @@ def succeed(whether, diagnostic=None):
         sys.exit(0)
     else:
         sys.exit(1)
-
-def tidy_up():
-    if os.path.exists(pidsfile):
-        for pid in file(pidsfile,'r').read().split('\n'):
-            try:
-                pid = int(pid)
-                os.kill(pid, signal.SIGKILL)
-            except:
-                pass
-        file(pidsfile, 'w').write('')
 
 banner()
 
@@ -164,11 +153,6 @@ if options.has_key('--events'):
     autoshare_switches.append('--events')
 
 ################################################################
-
-# optionally, we could call tidy_up here
-# to close old Xephyr sessions before we
-# start.
-# tidy_up()
 
 test_x_server_active(3)
 test_x_server_active(4)
@@ -260,5 +244,3 @@ elif test in ('click', 'clickbehind'):
     events = file('/tmp/xzibit-events','r').readlines()
     print events
 
-if test!='basic':
-    tidy_up()
