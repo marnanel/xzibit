@@ -53,7 +53,24 @@ Less important:
 
  * Audio support.  This is partly-written in a branch.
 
-D. Where to find more information
+D. Toggling sharing of windows
+
+xzibit-toggle is a simple program to let you click on
+a window and share it (or unshare it).
+
+E. The envelope patch
+
+There is a patch, not supplied here, to add an envelope
+button to mutter's window decorations.  This button
+changes colour to reflect the sharing status of the
+window.  When pressed, it runs the src/xzibit-share
+script.  This patch can't currently be done in a plugin,
+and since there are slightly less convenient but much
+less intrusive ways to do the same thing, I left it out.
+It may be better to do this using Canonical's "windicators"
+idea.
+
+F. Where to find more information
 
  * http://telepathy.freedesktop.org/wiki/Xzibit
  * http://git.collabora.co.uk/?p=user/tthurman/xzibit/.git
