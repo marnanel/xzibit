@@ -1,9 +1,60 @@
-Bits and pieces for testing xzibit.  None of these will probably make it into the final product.
+xzibit is a per-window VNC system.
+Its development is supported by Collabora Ltd.
 
-Xzibit_2007.jpg: photo of Xzibit, (c) Sjoerd ten Kate from London, licensed under cc-by-sa.
-noddy-rfb-server.py: an RFB server that sends you a photo of Xzibit
-state-toggle.c: an app which can switch the _XZIBIT_SHARE setting of its window
-xzibit-bus-server.py: a simple Unix domain bus server, used before we get stuck into tubes
-xzibit-bus-client.py: test for xzibit-bus-server.py; not the real-life client
-xzibit-share: utterly minimal program which runs when you click the xzibit icon
+A. Instructions:
 
+1. make sure you have wmctrl, xlogo, libvncserver,
+   Xephyr, and gtk-vnc installed.
+   (some of these are checked by autotools,
+    some of them aren't yet.)
+2. run ./autogen.sh
+3. run make install
+4. if your mutter is expecting plugins in /usr/lib, you
+   may need to run
+
+       sudo cp /usr/local/lib/mutter/plugins/xzibit.so \
+           /usr/lib/mutter/plugins/
+ 
+   (this should really be done in autotools)
+
+5. use gconf-editor to set
+       /apps/mutter/general/clutter_plugins
+   to a list containing the string
+       xzibit
+
+6. run xzibit-demo
+
+That's all to be going on with.
+
+B. More details:
+
+xzibit-demo calls xzibit-run with some useful arguments.
+xzibit-run launches two Xephyrs, :3 and :4, and sets
+up a mutter instance on both of them.  It then runs
+xzibit-autoshare on :3.  xzibit-autoshare automatically
+sets itself as shared after a few seconds.  This should
+cause it to appear on :4 as well.
+
+For more information, read the protocol document in doc/.
+
+C. What's left to do:
+
+Vital:
+
+ * Telepathy support.  At present it only works across
+   the loopback interface.  The next release will
+   send the windows over Tubes.
+ * Getting xinput2 support fully working, so we can fake
+   mouse clicks and keypresses on arbitrary windows.
+ * "Doppelganger" pointers, i.e. ones which track the
+   movement on the other display.
+
+Less important:
+
+ * Audio support.  This is partly-written in a branch.
+
+D. Where to find more information
+
+ * http://telepathy.freedesktop.org/wiki/Xzibit
+ * http://git.collabora.co.uk/?p=user/tthurman/xzibit/.git
+ * mailto:thomas.thurman@collabora.co.uk
