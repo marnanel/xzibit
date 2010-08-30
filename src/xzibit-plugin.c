@@ -1205,9 +1205,6 @@ copy_bottom_to_client (GIOChannel *source,
 
         case -1:
           priv->bottom_length |= buffer[i] * 256;
-          g_print ("Channel is %d, length is %d",
-                   priv->bottom_channel,
-                   priv->bottom_length);
           priv->bottom_buffer = g_malloc (priv->bottom_length);
           break;
 
