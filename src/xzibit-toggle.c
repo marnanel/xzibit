@@ -152,10 +152,14 @@ if (kids)
 
     if (window_is_shared==0 || window_is_shared==1)
       {
+        char *sharing[2] = { "not shared", "shared" };
 
         window_is_shared = 1 - window_is_shared;
 
-        printf ("Setting %d to %d on %x\n", _xzibit_share, window_is_shared, target);
+        printf ("Marking window %x as %s\n",
+               target,
+              sharing[window_is_shared]);
+
         XChangeProperty (dpy, target,
                 _xzibit_share,
                 cardinal,
