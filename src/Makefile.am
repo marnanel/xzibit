@@ -1,4 +1,4 @@
-bin_SCRIPTS = xzibit-run
+bin_SCRIPTS = xzibit-run xzibit-demo
 
 bin_PROGRAMS = xzibit-toggle xzibit-autoshare
 xzibit_toggle_SOURCES = xzibit-toggle.c

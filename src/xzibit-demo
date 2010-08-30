@@ -1,0 +1,2 @@
+#!/bin/bash
+xzibit-run --test basic --autoshare pulse
