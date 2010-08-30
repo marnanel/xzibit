@@ -10,7 +10,7 @@ xzibit_autoshare_CPPFLAGS = -g @GDK_CFLAGS@ @GTK_CFLAGS@
 xzibit_autoshare_LDADD = @GDK_LIBS@ @GTK_LIBS@
 
 pkglibexec_PROGRAMS = xzibit-rfb-client
-xzibit_rfb_client_SOURCES = xzibit-rfb-client.c xzibit-rfb-client.h
+xzibit_rfb_client_SOURCES = xzibit-rfb-client.c
 xzibit_rfb_client_CPPFLAGS = -g @CLUTTER_CFLAGS@ @GDK_CFLAGS@ @GTK_CFLAGS@ @GTK_VNC_CFLAGS@
 xzibit_rfb_client_LDADD = @CLUTTER_LIBS@ @GDK_LIBS@ @GTK_LIBS@ @GTK_VNC_LIBS@
 
