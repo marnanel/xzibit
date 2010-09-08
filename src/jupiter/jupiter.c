@@ -47,7 +47,8 @@ void
 set_up_jupiter()
 {
   GdkPixbuf *planet;
-  
+
+  /*
   xzibit = xzibit_client_new ();
 
   planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
@@ -63,8 +64,5 @@ set_up_jupiter()
   xzibit_client_send_video (xzibit, channel, planet);
   xzibit_client_set_title (xzibit, channel, "Jupiter");
   xzibit_client_set_icon (xzibit, channel, planet);
-
-  g_timeout_add (1000,
-                 play_holst,
-                 NULL);
+  */
 }
