@@ -35,5 +35,9 @@ PKG_CHECK_MODULES([X11], [x11])
 AC_SUBST([X11_CFLAGS])
 AC_SUBST([X11_LIBS])
 
-AC_OUTPUT(Makefile src/Makefile)
+PKG_CHECK_MODULES([TELEPATHY_GLIB], [telepathy-glib >= 0.11.12])
+AC_SUBST([TELEPATHY_GLIB_CFLAGS])
+AC_SUBST([TELEPATHY_GLIB_LIBS])
+
+AC_OUTPUT(Makefile src/Makefile src/jupiter/Makefile)
 

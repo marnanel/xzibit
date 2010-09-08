@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src
+SUBDIRS = src src/jupiter
 EXTRA_DIST = autogen.sh
 
 dist-hook:

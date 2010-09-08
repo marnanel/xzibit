@@ -43,16 +43,11 @@ play_holst (gpointer data)
   return result;
 }
 
-int
-main(int argc, char **argv)
+void
+set_up_jupiter()
 {
   GdkPixbuf *planet;
-  GMainLoop *gmainloop;
   
-  g_type_init ();
-
-  gmainloop = g_main_loop_new (NULL, FALSE);
-
   xzibit = xzibit_client_new ();
 
   planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
@@ -72,8 +67,4 @@ main(int argc, char **argv)
   g_timeout_add (1000,
                  play_holst,
                  NULL);
-
-  g_main_loop_run (gmainloop);
-
-  g_print ("DONE.\n");
 }
