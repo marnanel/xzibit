@@ -8,8 +8,12 @@
  * Based on the default Mutter plugin by
  * Tomas Frydrych <tf@linux.intel.com>
  *
+ * Based on original ssh-contacts code from Telepathy by
+ * Xavier Claessens <xclaesse@gmail.com>
+ * 
  * Copyright (c) 2010 Collabora Ltd.
  * Copyright (c) 2008 Intel Corp.
+ * Copyright (c) 2010 Xavier Claessens <xclaesse@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -345,6 +349,7 @@ static void
 start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  gchar *test_command = g_getenv("XZIBIT_TEST");
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -362,7 +367,13 @@ start (MutterPlugin *plugin)
   priv->bottom_length = 0;
   priv->bottom_buffer = NULL;
 
-  if (g_getenv("XZIBIT_TEST_AS_CLIENT"))
+  if (!test_command)
+    {
+      // This is not a test.
+      //
+      // FIXME: fill this in.
+    }
+  else if (strcmp(test_command, "CLIENT")==0)
     {
       /* This is a special case for testing
        * on a single host:
