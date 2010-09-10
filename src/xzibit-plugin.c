@@ -51,8 +51,10 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
+#include <telepathy-glib/telepathy-glib.h>
 
 #define XZIBIT_PORT 1770
+#define TUBE_SERVICE "x-xzibit"
 
 #define MUTTER_TYPE_XZIBIT_PLUGIN            (mutter_xzibit_plugin_get_type ())
 #define MUTTER_XZIBIT_PLUGIN(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), MUTTER_TYPE_XZIBIT_PLUGIN, MutterXzibitPlugin))
@@ -67,6 +69,8 @@
 typedef struct _MutterXzibitPlugin        MutterXzibitPlugin;
 typedef struct _MutterXzibitPluginClass   MutterXzibitPluginClass;
 typedef struct _MutterXzibitPluginPrivate MutterXzibitPluginPrivate;
+
+static GList *channel_list = NULL;
 
 /**
  * The highest channel we have yet allocated.
@@ -340,6 +344,152 @@ mutter_xzibit_plugin_get_property (GObject    *object,
     }
 }
 
+static void channel_invalidated_cb (TpChannel *channel, guint domain, gint code,
+    gchar *message, gpointer user_data);
+
+static void
+session_complete (TpChannel *channel, const GError *error)
+{
+  if (error != NULL)
+    {
+      g_debug ("Error for channel %p: %s", channel,
+               error->message);
+    }
+
+  g_signal_handlers_disconnect_by_func (channel, channel_invalidated_cb, NULL);
+  tp_cli_channel_call_close (channel, -1, NULL, NULL, NULL, NULL);
+  channel_list = g_list_remove (channel_list, channel);
+  g_object_unref (channel);
+}
+
+static void
+channel_invalidated_cb (TpChannel *channel,
+    guint domain,
+    gint code,
+    gchar *message,
+    gpointer user_data)
+{
+  session_complete (channel, tp_proxy_get_invalidated (TP_PROXY (channel)));
+}
+
+static void
+splice_cb (GObject *source_object,
+    GAsyncResult *res,
+    gpointer channel)
+{
+  GError *error = NULL;
+
+  _g_io_stream_splice_finish (res, &error);
+  session_complete (channel, error);
+  g_clear_error (&error);
+}
+
+static void
+accept_tube_cb (TpChannel *channel,
+    const GValue *address,
+    const GError *error,
+    gpointer user_data,
+    GObject *weak_object)
+{
+  GSocketAddress *socket_address = NULL;
+  GInetAddress *inet_address = NULL;
+  GSocket *socket = NULL;
+  GSocketConnection *tube_connection = NULL;
+  GSocketConnection *sshd_connection = NULL;
+  GError *err = NULL;
+
+  if (error != NULL)
+    {
+      session_complete (channel, error);
+      return;
+    }
+
+  /* Connect to the unix socket we received */
+  socket_address = tp_g_socket_address_from_variant (
+      TP_SOCKET_ADDRESS_TYPE_UNIX, address, &err);
+  if (socket_address == NULL)
+    goto OUT;
+  socket = g_socket_new (G_SOCKET_FAMILY_UNIX, G_SOCKET_TYPE_STREAM,
+      G_SOCKET_PROTOCOL_DEFAULT, &err);
+  if (socket == NULL)
+    goto OUT;
+  if (!g_socket_connect (socket, socket_address, NULL, &err))
+    goto OUT;
+  tube_connection = g_socket_connection_factory_create_connection (socket);
+  tp_clear_object (&socket_address);
+  tp_clear_object (&socket);
+
+  /* Connect to the sshd */
+  inet_address = g_inet_address_new_loopback (G_SOCKET_FAMILY_IPV4);
+  socket_address = g_inet_socket_address_new (inet_address, 22);
+  socket = g_socket_new (G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_STREAM,
+      G_SOCKET_PROTOCOL_DEFAULT, &err);
+  if (socket == NULL)
+    goto OUT;
+  if (!g_socket_connect (socket, socket_address, NULL, &err))
+    goto OUT;
+  sshd_connection = g_socket_connection_factory_create_connection (socket);
+
+  /* Splice tube and ssh connections */
+  _g_io_stream_splice_async (G_IO_STREAM (tube_connection),
+      G_IO_STREAM (sshd_connection), splice_cb, channel);
+
+OUT:
+
+  if (err != NULL)
+    session_complete (channel, err);
+
+  tp_clear_object (&inet_address);
+  tp_clear_object (&socket_address);
+  tp_clear_object (&socket);
+  tp_clear_object (&tube_connection);
+  tp_clear_object (&sshd_connection);
+  g_clear_error (&err);
+}
+
+static void
+got_channel_cb (TpSimpleHandler *handler,
+    TpAccount *account,
+    TpConnection *connection,
+    GList *channels,
+    GList *requests_satisfied,
+    gint64 user_action_time,
+    TpHandleChannelsContext *context,
+    gpointer user_data)
+{
+  GValue value = { 0, };
+  GList *l;
+
+  /* FIXME: Dummy value because passing NULL makes tp-glib crash */
+  g_value_init (&value, G_TYPE_STRING);
+
+  for (l = channels; l != NULL; l = l->next)
+    {
+      TpChannel *channel = l->data;
+
+      /* FIXME: this is a debug print; we should probably remove it */
+      if (tp_strdiff (tp_channel_get_channel_type (channel),
+          TP_IFACE_CHANNEL_TYPE_STREAM_TUBE))
+        {
+          g_print ("%s\n", tp_channel_get_channel_type (channel));
+          continue;
+        }
+
+      channel_list = g_list_prepend (channel_list, g_object_ref (channel));
+      g_signal_connect (channel, "invalidated",
+          G_CALLBACK (channel_invalidated_cb), NULL);
+
+      tp_cli_channel_type_stream_tube_call_accept (channel, -1,
+          TP_SOCKET_ADDRESS_TYPE_UNIX,
+          TP_SOCKET_ACCESS_CONTROL_LOCALHOST, &value,
+          accept_tube_cb, NULL, NULL, NULL);
+
+    }
+  tp_handle_channels_context_accept (context);
+
+  g_value_reset (&value);
+}
+
 /**
  * Sets up the whole system and gets us underway.
  *
@@ -349,7 +499,7 @@ static void
 start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  gchar *test_command = g_getenv("XZIBIT_TEST");
+  const gchar *test_command = g_getenv("XZIBIT_TEST");
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -372,6 +522,38 @@ start (MutterPlugin *plugin)
       // This is not a test.
       //
       // FIXME: fill this in.
+
+      TpDBusDaemon *dbus = NULL;
+      TpBaseClient *client = NULL;
+      gboolean success = TRUE;
+      GError *error = NULL;
+
+      dbus = tp_dbus_daemon_dup (&error);
+      if (dbus == NULL)
+        {
+          g_error ("Cannot get a handle on D-Bus.");
+          return;
+        }
+
+      client = tp_simple_handler_new (dbus, FALSE, FALSE, "SSHContact",
+                                      FALSE, got_channel_cb, NULL, NULL);
+
+      tp_base_client_take_handler_filter (client, tp_asv_new (
+                                                              TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
+                                                              TP_IFACE_CHANNEL_TYPE_STREAM_TUBE,
+                                                              TP_PROP_CHANNEL_TARGET_HANDLE_TYPE, G_TYPE_UINT,
+                                                              TP_HANDLE_TYPE_CONTACT,
+                                                              TP_PROP_CHANNEL_TYPE_STREAM_TUBE_SERVICE, G_TYPE_STRING,
+                                                              TUBE_SERVICE,
+                                                              TP_PROP_CHANNEL_REQUESTED, G_TYPE_BOOLEAN,
+                                                              FALSE,
+                                                              NULL));
+
+      if (!tp_base_client_register (client, &error))
+        {
+          g_error ("Could not register the client.");
+          return;
+        }
     }
   else if (strcmp(test_command, "CLIENT")==0)
     {
@@ -386,6 +568,9 @@ start (MutterPlugin *plugin)
     }
   else
     {
+      /* test command is defined, and is not "CLIENT".
+       * (Canonically it would be "SERVER".)
+       */
       GIOChannel *channel;
       struct sockaddr_in addr;
       int one = 1;
