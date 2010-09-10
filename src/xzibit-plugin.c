@@ -517,7 +517,7 @@ start (MutterPlugin *plugin)
   priv->bottom_length = 0;
   priv->bottom_buffer = NULL;
 
-  if (!test_command)
+  if (!test_command || strcmp (test_command, "")==0)
     {
       // This is not a test.
       //
