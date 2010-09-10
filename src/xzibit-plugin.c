@@ -520,8 +520,6 @@ start (MutterPlugin *plugin)
   if (!test_command || strcmp (test_command, "")==0)
     {
       // This is not a test.
-      //
-      // FIXME: fill this in.
 
       TpDBusDaemon *dbus = NULL;
       TpBaseClient *client = NULL;
