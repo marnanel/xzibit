@@ -490,6 +490,12 @@ got_channel_cb (TpSimpleHandler *handler,
   g_value_reset (&value);
 }
 
+typedef enum {
+  XZIBIT_START_MODE_TUBES,
+  XZIBIT_START_MODE_TEST_CLIENT,
+  XZIBIT_START_MODE_TEST_SERVER,
+} XzibitStartMode;
+
 /**
  * Sets up the whole system and gets us underway.
  *
@@ -500,6 +506,7 @@ start (MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   const gchar *test_command = g_getenv("XZIBIT_TEST");
+  XzibitStartMode start_mode = XZIBIT_START_MODE_TUBES;
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -518,6 +525,13 @@ start (MutterPlugin *plugin)
   priv->bottom_buffer = NULL;
 
   if (!test_command || strcmp (test_command, "")==0)
+    start_mode = XZIBIT_START_MODE_TUBES;
+  else if (strcmp(test_command, "CLIENT")==0)
+    start_mode = XZIBIT_START_MODE_TEST_CLIENT;
+  else
+    start_mode = XZIBIT_START_MODE_TEST_SERVER;
+
+  if (start_mode==XZIBIT_START_MODE_TUBES)
     {
       // This is not a test.
 
@@ -526,6 +540,8 @@ start (MutterPlugin *plugin)
       gboolean success = TRUE;
       GError *error = NULL;
 
+      g_warning ("In ordinary tubes mode.");
+
       dbus = tp_dbus_daemon_dup (&error);
       if (dbus == NULL)
         {
@@ -533,7 +549,7 @@ start (MutterPlugin *plugin)
           return;
         }
 
-      client = tp_simple_handler_new (dbus, FALSE, FALSE, "SSHContact",
+      client = tp_simple_handler_new (dbus, FALSE, FALSE, "Xzibit",
                                       FALSE, got_channel_cb, NULL, NULL);
 
       tp_base_client_take_handler_filter (client, tp_asv_new (
@@ -552,9 +568,11 @@ start (MutterPlugin *plugin)
           g_error ("Could not register the client.");
           return;
         }
+
+      // XXX we also need to create the socket here.
     }
-  else if (strcmp(test_command, "CLIENT")==0)
-    {
+
+  if (start_mode==XZIBIT_START_MODE_TEST_CLIENT) {
       /* This is a special case for testing
        * on a single host:
        * we don't create a listening socket,
@@ -563,12 +581,18 @@ start (MutterPlugin *plugin)
        * on the same machine.
        */
       priv->listening_fd = -1;
+
+      g_warning ("In testing mode.");
     }
   else
     {
-      /* test command is defined, and is not "CLIENT".
-       * (Canonically it would be "SERVER".)
+      /*
+       * Either we're in ordinary tubes mode,
+       * or we're running under the test harness
+       * as a server.  Either way, we need to
+       * set up the port to listen.
        */
+
       GIOChannel *channel;
       struct sockaddr_in addr;
       int one = 1;
