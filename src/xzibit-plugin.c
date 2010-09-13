@@ -568,8 +568,6 @@ start (MutterPlugin *plugin)
           g_error ("Could not register the client.");
           return;
         }
-
-      // XXX we also need to create the socket here.
     }
 
   if (start_mode==XZIBIT_START_MODE_TEST_CLIENT) {
