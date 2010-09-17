@@ -49,7 +49,6 @@ typedef struct
 
   TpChannel *channel;
   GSocketConnection *tube_connection;
-  GSocketConnection *xzibit_connection;
 
   gboolean account_set:1;
   gboolean contact_set:1;
@@ -100,42 +99,20 @@ splice_cb (GObject *source_object,
 }
 
 static void
-xzibit_socket_connected_cb (GObject *source_object,
-    GAsyncResult *res,
-    gpointer user_data)
-{
-  ClientContext *context = user_data;
-  GSocketListener *listener = G_SOCKET_LISTENER (source_object);
-  GError *error = NULL;
-
-  context->xzibit_connection = g_socket_listener_accept_finish (listener, res,
-      NULL, &error);
-  if (error != NULL)
-    {
-      throw_error (context, error);
-      g_clear_error (&error);
-      return;
-    }
-
-  /* Splice tube and ssh connections */
-  _g_io_stream_splice_async (G_IO_STREAM (context->tube_connection),
-      G_IO_STREAM (context->xzibit_connection), splice_cb, context);
-}
-
-static void
 create_tube_cb (GObject *source_object,
     GAsyncResult *res,
     gpointer user_data)
 {
   ClientContext *context = user_data;
-  GSocketListener *listener;
   GSocket *socket;
   GStrv args = NULL;
   GPid pid;
   GError *error = NULL;
+  int fd;
 
   context->tube_connection = _client_create_tube_finish (res, &context->channel,
-      &error);
+          &error);
+
   if (error != NULL)
     {
       throw_error (context, error);
@@ -143,25 +120,19 @@ create_tube_cb (GObject *source_object,
       return;
     }
 
-  listener = g_socket_listener_new ();
-  socket = _client_create_local_socket (&error);
+  socket = g_socket_connection_get_socket (context->tube_connection);
+
   if (socket == NULL)
-    goto OUT;
-  if (!g_socket_listen (socket, &error))
-    goto OUT;
-  if (!g_socket_listener_add_socket (listener, socket, NULL, &error))
-    goto OUT;
+    {
+      /* FIXME: unlikely, but we should throw an error or something here */
+      return;
+    }
 
-  g_socket_listener_accept_async (listener, NULL,
-      xzibit_socket_connected_cb, context);
+  fd = g_socket_get_fd (socket);
 
-OUT:
-
-  if (error != NULL)
-    throw_error (context, error);
+  g_warning ("The FD is %d", fd);
 
   g_clear_error (&error);
-  tp_clear_object (&listener);
   tp_clear_object (&socket);
   g_strfreev (args);
 }
@@ -514,7 +485,6 @@ client_context_clear (ClientContext *context)
 
   tp_clear_object (&context->channel);
   tp_clear_object (&context->tube_connection);
-  tp_clear_object (&context->xzibit_connection);
 }
 
 int
