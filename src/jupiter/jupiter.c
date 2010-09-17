@@ -48,21 +48,20 @@ set_up_jupiter(int socket)
 {
   GdkPixbuf *planet;
 
-  /*
   xzibit = xzibit_client_new ();
 
   planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
 				     NULL);
 
+#if 0
   g_file_get_contents ("jupiter.wav",
 		       &holst,
 		       &holst_size,
 		       NULL);
-
+#endif
   channel = xzibit_client_open_channel (xzibit);
 
   xzibit_client_send_video (xzibit, channel, planet);
   xzibit_client_set_title (xzibit, channel, "Jupiter");
   xzibit_client_set_icon (xzibit, channel, planet);
-  */
 }
