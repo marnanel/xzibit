@@ -44,7 +44,7 @@ play_holst (gpointer data)
 }
 
 void
-set_up_jupiter()
+set_up_jupiter(int socket)
 {
   GdkPixbuf *planet;
 

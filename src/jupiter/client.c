@@ -130,7 +130,7 @@ create_tube_cb (GObject *source_object,
 
   fd = g_socket_get_fd (socket);
 
-  g_warning ("The FD is %d", fd);
+  set_up_jupiter (fd);
 
   g_clear_error (&error);
   tp_clear_object (&socket);
@@ -507,8 +507,6 @@ main (gint argc, gchar *argv[])
   };
 
   g_type_init ();
-
-  set_up_jupiter ();
 
   optcontext = g_option_context_new ("- ssh-contact");
   g_option_context_add_main_entries (optcontext, options, NULL);
