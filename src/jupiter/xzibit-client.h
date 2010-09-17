@@ -41,6 +41,13 @@ typedef struct _XzibitClient XzibitClient;
 XzibitClient* xzibit_client_new (void);
 
 /**
+ * Creates an xzibit client connected to the
+ * xzibit server on the other end of the
+ * given file descriptor.
+ */
+XzibitClient* xzibit_client_new_from_fd (int fd);
+
+/**
  * Destroys an xzibit client and frees the
  * memory.
  *

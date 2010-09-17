@@ -289,9 +289,38 @@ XzibitClient*
 xzibit_client_new (void)
 {
   struct sockaddr_in addr;
+  int fd = -1;
+
+  memset (&addr, 0, sizeof (addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons (XZIBIT_PORT);
+  addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+  
+  fd = socket (PF_INET,
+          SOCK_STREAM,
+          IPPROTO_TCP);
+
+  if (fd < 0)
+    {
+      g_error ("Could not create a socket; things will break\n");
+    }
+ 
+  if (connect (fd,
+	       (struct sockaddr*) &addr,
+	       sizeof(addr))!=0)
+    {
+      g_error ("Could not talk to xzibit.\n");
+    }
+
+  return xzibit_client_new_from_fd (fd);
+}
+
+XzibitClient*
+xzibit_client_new_from_fd (int fd)
+{
   XzibitClient *result = g_malloc(sizeof(XzibitClient));
   
-  result->xzibit_fd = -1;
+  result->xzibit_fd = fd;
   result->state = -3 - (sizeof(header));
   result->length = 0;
   result->channel = 0;
@@ -316,28 +345,7 @@ xzibit_client_new (void)
                            g_int_equal,
                            g_free,
                            g_free);
-
-  memset (&addr, 0, sizeof (addr));
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons (XZIBIT_PORT);
-  addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-  
-  result->xzibit_fd = socket (PF_INET,
-		       SOCK_STREAM,
-		       IPPROTO_TCP);
-
-  if (result->xzibit_fd < 0)
-    {
-      g_error ("Could not create a socket; things will break\n");
-    }
-      
-  if (connect (result->xzibit_fd,
-	       (struct sockaddr*) &addr,
-	       sizeof(addr))!=0)
-    {
-      g_error ("Could not talk to xzibit.\n");
-    }
-
+     
   result->gio_channel = g_io_channel_unix_new (result->xzibit_fd);
 
   g_io_add_watch (result->gio_channel,
@@ -345,7 +353,7 @@ xzibit_client_new (void)
 		  received_from_xzibit,
 		  result);
 
-  g_print ("Monitoring %d.\n", result->xzibit_fd);
+  g_print ("Monitoring %d.\n", fd);
 
   return result;
 }
