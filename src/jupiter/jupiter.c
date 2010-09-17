@@ -50,7 +50,7 @@ set_up_jupiter(int socket)
 
   xzibit = xzibit_client_new_from_fd (socket);
 
-  planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
+  planet = gdk_pixbuf_new_from_file ("src/jupiter/jupiter.jpg",
 				     NULL);
 
 #if 0
