@@ -49,7 +49,7 @@ typedef struct
 
   TpChannel *channel;
   GSocketConnection *tube_connection;
-  GSocketConnection *ssh_connection;
+  GSocketConnection *xzibit_connection;
 
   gboolean account_set:1;
   gboolean contact_set:1;
@@ -100,7 +100,7 @@ splice_cb (GObject *source_object,
 }
 
 static void
-ssh_socket_connected_cb (GObject *source_object,
+xzibit_socket_connected_cb (GObject *source_object,
     GAsyncResult *res,
     gpointer user_data)
 {
@@ -108,7 +108,7 @@ ssh_socket_connected_cb (GObject *source_object,
   GSocketListener *listener = G_SOCKET_LISTENER (source_object);
   GError *error = NULL;
 
-  context->ssh_connection = g_socket_listener_accept_finish (listener, res,
+  context->xzibit_connection = g_socket_listener_accept_finish (listener, res,
       NULL, &error);
   if (error != NULL)
     {
@@ -119,7 +119,7 @@ ssh_socket_connected_cb (GObject *source_object,
 
   /* Splice tube and ssh connections */
   _g_io_stream_splice_async (G_IO_STREAM (context->tube_connection),
-      G_IO_STREAM (context->ssh_connection), splice_cb, context);
+      G_IO_STREAM (context->xzibit_connection), splice_cb, context);
 }
 
 static void
@@ -153,9 +153,7 @@ create_tube_cb (GObject *source_object,
     goto OUT;
 
   g_socket_listener_accept_async (listener, NULL,
-      ssh_socket_connected_cb, context);
-
-  g_error ("FIXME: Got as far as is reasonable in this pass");
+      xzibit_socket_connected_cb, context);
 
 OUT:
 
@@ -516,7 +514,7 @@ client_context_clear (ClientContext *context)
 
   tp_clear_object (&context->channel);
   tp_clear_object (&context->tube_connection);
-  tp_clear_object (&context->ssh_connection);
+  tp_clear_object (&context->xzibit_connection);
 }
 
 int
