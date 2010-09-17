@@ -48,7 +48,7 @@ set_up_jupiter(int socket)
 {
   GdkPixbuf *planet;
 
-  xzibit = xzibit_client_new ();
+  xzibit = xzibit_client_new_from_fd (socket);
 
   planet = gdk_pixbuf_new_from_file ("jupiter.jpg",
 				     NULL);
