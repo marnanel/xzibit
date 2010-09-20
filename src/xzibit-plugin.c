@@ -260,7 +260,7 @@ typedef struct _ForwardedWindow {
 } ForwardedWindow;
 
 /* leave it turned off for now */
-#if 0
+#if 1
 
 /**
  * Dumps a stream of data as it's on its way somewhere.
@@ -398,6 +398,8 @@ accept_tube_cb (TpChannel *channel,
   GSocketConnection *sshd_connection = NULL;
   GError *err = NULL;
 
+  g_warning ("Accept tube cb\n");
+
   if (error != NULL)
     {
       session_complete (channel, error);
@@ -459,6 +461,8 @@ got_channel_cb (TpSimpleHandler *handler,
 {
   GValue value = { 0, };
   GList *l;
+
+  g_warning ("Got channel cb\n");
 
   /* FIXME: Dummy value because passing NULL makes tp-glib crash */
   g_value_init (&value, G_TYPE_STRING);
