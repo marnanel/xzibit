@@ -379,52 +379,6 @@ _client_create_local_socket (GError **error)
   return socket;
 }
 
-GStrv
-_client_create_exec_args (GSocket *socket,
-    const gchar *contact_id,
-    const gchar *username)
-{
-  GPtrArray *args;
-  GSocketAddress *socket_address;
-  GInetAddress *inet_address;
-  guint16 port;
-  gchar *host;
-  gchar *str;
-
-  /* Get the local host and port on which sshd is running */
-  socket_address = g_socket_get_local_address (socket, NULL);
-  inet_address = g_inet_socket_address_get_address (
-      G_INET_SOCKET_ADDRESS (socket_address));
-  port = g_inet_socket_address_get_port (
-      G_INET_SOCKET_ADDRESS (socket_address));
-  host = g_inet_address_to_string (inet_address);
-
-  /* Create ssh client args */
-  args = g_ptr_array_new_with_free_func (g_free);
-  g_ptr_array_add (args, g_strdup ("ssh"));
-  g_ptr_array_add (args, host);
-
-  g_ptr_array_add (args, g_strdup ("-p"));
-  str = g_strdup_printf ("%d", port);
-  g_ptr_array_add (args, str);
-
-  if (contact_id != NULL)
-    {
-      str = g_strdup_printf ("-oHostKeyAlias=%s", contact_id);
-      g_ptr_array_add (args, str);
-    }
-
-  if (username != NULL && *username != '\0')
-    {
-      g_ptr_array_add (args, g_strdup ("-l"));
-      g_ptr_array_add (args, g_strdup (username));
-    }
-
-  g_ptr_array_add (args, NULL);
-
-  return (gchar **) g_ptr_array_free (args, FALSE);
-}
-
 gboolean
 _capabilities_has_stream_tube (TpCapabilities *caps)
 {
