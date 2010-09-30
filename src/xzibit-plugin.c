@@ -421,9 +421,10 @@ accept_tube_cb (TpChannel *channel,
   tp_clear_object (&socket_address);
   tp_clear_object (&socket);
 
-  /* Connect to the sshd */
+  /* Connect to the xzibit daemon */
   inet_address = g_inet_address_new_loopback (G_SOCKET_FAMILY_IPV4);
-  socket_address = g_inet_socket_address_new (inet_address, 22);
+  socket_address = g_inet_socket_address_new (inet_address,
+                                              XZIBIT_PORT);
   socket = g_socket_new (G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_STREAM,
       G_SOCKET_PROTOCOL_DEFAULT, &err);
   if (socket == NULL)
@@ -432,7 +433,7 @@ accept_tube_cb (TpChannel *channel,
     goto OUT;
   sshd_connection = g_socket_connection_factory_create_connection (socket);
 
-  /* Splice tube and ssh connections */
+  /* Splice tube and xzibit connections */
   _g_io_stream_splice_async (G_IO_STREAM (tube_connection),
       G_IO_STREAM (sshd_connection), splice_cb, channel);
 

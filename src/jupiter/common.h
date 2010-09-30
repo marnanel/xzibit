@@ -24,7 +24,7 @@
 #include <gio/gio.h>
 #include <telepathy-glib/telepathy-glib.h>
 
-#define TUBE_SERVICE "x-ssh-contact"
+#define TUBE_SERVICE "x-xzibit"
 
 G_BEGIN_DECLS
 
