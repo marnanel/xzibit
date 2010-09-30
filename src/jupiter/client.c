@@ -105,7 +105,6 @@ create_tube_cb (GObject *source_object,
 {
   ClientContext *context = user_data;
   GSocket *socket;
-  GStrv args = NULL;
   GPid pid;
   GError *error = NULL;
   int fd;
@@ -125,16 +124,13 @@ create_tube_cb (GObject *source_object,
   if (socket == NULL)
     {
       /* FIXME: unlikely, but we should throw an error or something here */
+      g_warning ("The connection had no socket");
       return;
     }
 
   fd = g_socket_get_fd (socket);
 
   set_up_jupiter (fd);
-
-  g_clear_error (&error);
-  tp_clear_object (&socket);
-  g_strfreev (args);
 }
 
 static void
