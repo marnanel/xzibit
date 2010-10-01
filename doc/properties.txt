@@ -1,0 +1,33 @@
+X properties used in xzibit
+===========================
+
+_XZIBIT_SHARING
+  Set to
+    0 or absent = not shared
+    1 = please share this window
+    2 = this window is being received
+    3 = this window is exempt from sharing
+
+_XZIBIT_SOURCE
+  Name of the source account.
+  Only read when _XZIBIT_SHARING goes to 1.
+
+_XZIBIT_TARGET
+  Name of the account to send to.
+  Only read when _XZIBIT_SHARING goes to 1.
+
+_XZIBIT_RESULT
+  Set by the WM on a window.
+
+  100 = change to sharing state 0 acknowledged
+  101 = change to sharing state 1 acknowledged
+  102 = change to sharing state 2 acknowledged and successful
+  103 = change to sharing state 3 acknowledged
+  200 = switching to state 2; connecting
+  301 = could not switch to state 2: source address is not
+        an account that you're logged in with
+  302 = could not switch to state 2: target address is not
+        an account on the roster of the source account
+  312 = could not switch to state 2: target address does
+        not have the capabilities required
+
