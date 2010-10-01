@@ -32,6 +32,8 @@ gboolean showing_events = FALSE;
 gboolean no_share = FALSE;
 gboolean menu = FALSE;
 gboolean show_dialogue = FALSE;
+gchar *source = NULL;
+gchar *target = NULL;
 
 static const GOptionEntry options[] =
 {
@@ -50,6 +52,12 @@ static const GOptionEntry options[] =
         {
           "dialogue", 'd', 0, G_OPTION_ARG_NONE, &show_dialogue,
           "Pop up a transient dialogue after two seconds", NULL },
+        {
+          "source", 's', 0, G_OPTION_ARG_STRING, &source,
+          "Account ID to send from (not needed if you only have one)", NULL },
+        {
+          "target", 't', 0, G_OPTION_ARG_STRING, &target,
+          "Account ID to send to (must have capabilities)", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -151,6 +159,33 @@ embiggen (gpointer data)
     if (!shared && !no_share)
       {
 	guint32 window_is_shared = 1;
+
+        if (source)
+          {
+            g_warning ("%s on %x\n", source,
+                       GDK_WINDOW_XID (window->window));
+
+            XChangeProperty (gdk_x11_get_default_xdisplay (),
+                             GDK_WINDOW_XID (window->window),
+                             gdk_x11_get_xatom_by_name("_XZIBIT_SOURCE"),
+                             gdk_x11_get_xatom_by_name("UTF8_STRING"),
+                             8,
+                             PropModeReplace,
+                             (const unsigned char*) source,
+                             strlen(source));
+          }
+
+        if (target)
+          {
+            XChangeProperty (gdk_x11_get_default_xdisplay (),
+                             GDK_WINDOW_XID (window->window),
+                             gdk_x11_get_xatom_by_name("_XZIBIT_TARGET"),
+                             gdk_x11_get_xatom_by_name("UTF8_STRING"),
+                             8,
+                             PropModeReplace,
+                             (const unsigned char*) target,
+                             strlen(target));
+          }
 
 	XChangeProperty (gdk_x11_get_default_xdisplay (),
 			 GDK_WINDOW_XID (window->window),
