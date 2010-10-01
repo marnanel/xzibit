@@ -31,7 +31,7 @@ gboolean pulsing = FALSE;
 gboolean showing_events = FALSE;
 gboolean no_share = FALSE;
 gboolean menu = FALSE;
-gboolean show_transient = FALSE;
+gboolean show_dialogue = FALSE;
 
 static const GOptionEntry options[] =
 {
@@ -48,7 +48,7 @@ static const GOptionEntry options[] =
           "menu", 'm', 0, G_OPTION_ARG_NONE, &menu,
           "Pop up a menu after some delay", NULL },
         {
-          "transient", 't', 0, G_OPTION_ARG_NONE, &show_transient,
+          "dialogue", 'd', 0, G_OPTION_ARG_NONE, &show_dialogue,
           "Pop up a transient dialogue after two seconds", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
@@ -181,7 +181,7 @@ do_popups (gpointer dummy)
       pop_up_menu ();
     }
   
-  if (show_transient)
+  if (show_dialogue)
     {
       pop_up_transient ();
     }
