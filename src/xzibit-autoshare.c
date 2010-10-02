@@ -59,6 +59,12 @@ static const GOptionEntry options[] =
           "target", 't', 0, G_OPTION_ARG_STRING, &target,
           "Account ID to send to (must have capabilities)", NULL },
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
+
+        /*
+          A thought: what would be useful here is a switch "-L",
+          loopback, which found any two accounts you were logged in to
+          and had one another on their rosters.
+        */
 };
 
 static void
