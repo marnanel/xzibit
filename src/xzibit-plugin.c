@@ -1096,6 +1096,21 @@ unshare_window (Display *dpy,
                        &fw->channel);
 }
 
+static void
+window_set_result_property (Display *dpy,
+                            Window window,
+                            guint32 value)
+{
+  XChangeProperty (dpy,
+                   window,
+                   gdk_x11_get_xatom_by_name ("_XZIBIT_RESULT"),
+                   gdk_x11_get_xatom_by_name ("INTEGER"),
+                   32,
+                   PropModeReplace,
+                   (const unsigned char*) &value,
+                   1);
+}
+
 /**
  * Responds to a change in a window's sharing property,
  * such as by sharing or unsharing the window.
@@ -1106,7 +1121,9 @@ set_sharing_state (Display *dpy,
 {
   if (sharing_state == 2 || sharing_state == 3)
     {
-      /* not our concern */
+      /* not our concern, but set the response property */
+      window_set_result_property (dpy, window,
+                                  100 + sharing_state);
       return;
     }
 
@@ -1115,11 +1132,15 @@ set_sharing_state (Display *dpy,
     case 1:
       /* we are starting to share this window */
       share_window (dpy, window, plugin);
+      window_set_result_property (dpy, window,
+                                  101);
       break;
 
     case 0:
       /* we have stopped sharing this window */
       unshare_window (dpy, window, plugin);
+      window_set_result_property (dpy, window,
+                                  100);
       break;
     }
 }
