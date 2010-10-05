@@ -110,7 +110,27 @@ typedef struct _XzibitSendingWindow {
   Window window;
   gchar *source;
   gchar *target;
+
+  TpChannel *channel;
+  GSocketConnection *tube_connection;
+
+  TpAccount *account;
+
 } XzibitSendingWindow;
+
+typedef struct
+{
+  GSocketConnection *connection;
+  TpChannel *channel;
+
+  gulong cancelled_id;
+  gulong invalidated_id;
+
+  GCancellable *global_cancellable;
+  GCancellable *op_cancellable;
+  TpProxyPendingCall *offer_call;
+  gchar *unix_path;
+} CreateTubeData;
 
 static void start (MutterPlugin *plugin);
 static gboolean xevent_filter (MutterPlugin *plugin,
@@ -1001,6 +1021,93 @@ share_window_finish (Display *dpy,
 }
 
 /**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
+GSocketConnection*
+client_create_tube_finish (GAsyncResult *result,
+    TpChannel **channel,
+    GError **error)
+{
+  GSimpleAsyncResult *simple;
+  CreateTubeData *data;
+
+  g_return_val_if_fail (G_IS_SIMPLE_ASYNC_RESULT (result), NULL);
+
+  simple = G_SIMPLE_ASYNC_RESULT (result);
+
+  if (g_simple_async_result_propagate_error (simple, error))
+    return NULL;
+
+  g_return_val_if_fail (g_simple_async_result_is_valid (result, NULL,
+                                                        client_create_tube_finish),
+                        NULL);
+
+  data = g_simple_async_result_get_op_res_gpointer (
+      G_SIMPLE_ASYNC_RESULT (result));
+
+  if (channel != NULL)
+    *channel = g_object_ref (data->channel);
+
+  return g_object_ref (data->connection);
+}
+
+/**
+ * Part five of setting up the tube.
+ */
+static void
+create_channel_cb (GObject *acr,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  g_error ("Create channel callback (fixme)");
+}
+
+/**
+ * Part four of setting up the tube.
+ */
+static void
+create_tube_cb (GObject *source_object,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  TpConnection *connection = TP_CONNECTION (source_object);
+  XzibitSendingWindow* window = user_data;
+  GSocket *socket = NULL;
+  int fd = 0;
+  GError *error = NULL;
+
+  window->tube_connection = client_create_tube_finish (res,
+                                                       &window->channel,
+                                                       &error);
+
+  if (error != NULL)
+    {
+      g_warning ("Couldn't finish the tube: %s",
+                 error->message);
+      window_set_result_property (window->dpy, window->window,
+                                  301);
+      g_clear_error (&error);
+      return;
+    }
+
+  socket = g_socket_connection_get_socket (window->tube_connection);
+
+  if (socket == NULL)
+    {
+      g_warning ("The connection had no socket");
+      window_set_result_property (window->dpy, window->window,
+                                  301);
+      return;
+    }
+
+  fd = g_socket_get_fd (socket);
+
+  g_error ("Part four!  The socket is %d", fd);
+}
+
+/**
  * Returns whether a set of capabilities contains
  * the capability of streaming tubes.
  *
@@ -1047,6 +1154,37 @@ capabilities_has_stream_tube (TpCapabilities *caps)
   return FALSE;
 }
 
+static void
+unix_path_destroy (gchar *unix_path)
+{
+  if (unix_path != NULL)
+    {
+      gchar *p;
+
+      g_unlink (unix_path);
+      p = g_strrstr (unix_path, G_DIR_SEPARATOR_S);
+      *p = '\0';
+      g_rmdir (unix_path);
+      g_free (unix_path);
+    }
+}
+
+/**
+ * Destroys a CreateTubeData record.
+ */
+static void
+create_tube_data_free (CreateTubeData *data)
+{
+  tp_clear_object (&data->connection);
+  tp_clear_object (&data->channel);
+
+  tp_clear_object (&data->global_cancellable);
+  tp_clear_object (&data->op_cancellable);
+  tp_clear_pointer (&data->unix_path, unix_path_destroy);
+
+  g_slice_free (CreateTubeData, data);
+}
+
 /**
  * Part three of setting up the tube.
  */
@@ -1055,8 +1193,12 @@ connection_prepare_cb (GObject *object,
     GAsyncResult *res,
     gpointer user_data)
 {
+  GSimpleAsyncResult *simple;
   TpConnection *connection = TP_CONNECTION (object);
   XzibitSendingWindow* window = user_data;
+  CreateTubeData *data;
+  GHashTable *request;
+  TpAccountChannelRequest *acr;
 
   if (!tp_proxy_prepare_finish (TP_PROXY (connection), res, NULL) ||
       !capabilities_has_stream_tube (tp_connection_get_capabilities (connection)))
@@ -1068,7 +1210,31 @@ connection_prepare_cb (GObject *object,
       return;
     }
 
-  g_error ("Finished!");
+  simple = g_simple_async_result_new (NULL, create_tube_cb,
+                                      user_data,
+                                      client_create_tube_finish);
+
+  data = g_slice_new0 (CreateTubeData);
+  data->op_cancellable = g_cancellable_new ();
+
+  g_simple_async_result_set_op_res_gpointer (simple, data,
+      (GDestroyNotify) create_tube_data_free);
+
+  request = tp_asv_new (
+      TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
+        TP_IFACE_CHANNEL_TYPE_STREAM_TUBE,
+      TP_PROP_CHANNEL_TARGET_HANDLE_TYPE, G_TYPE_UINT,
+        TP_HANDLE_TYPE_CONTACT,
+      TP_PROP_CHANNEL_TARGET_ID, G_TYPE_STRING,
+        window->target,
+      TP_PROP_CHANNEL_TYPE_STREAM_TUBE_SERVICE, G_TYPE_STRING,
+        TUBE_SERVICE,
+      NULL);
+
+  acr = tp_account_channel_request_new (window->account,
+                                        request, G_MAXINT64);
+  tp_account_channel_request_create_and_handle_channel_async (acr,
+      data->op_cancellable, create_channel_cb, simple);
 }
 
 /**
@@ -1183,8 +1349,9 @@ share_window (Display *dpy,
               g_free (account_id);
             }
 
-          priv->sending_account = tp_account_new (priv->dbus,
-                                                  window->source, &error);
+          priv->sending_account =
+            window->account = tp_account_new (priv->dbus,
+                                              window->source, &error);
           if (priv->sending_account == NULL)
             {
               g_warning ("No such sending account: %s", window->source);
