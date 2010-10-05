@@ -105,6 +105,12 @@ struct _MutterXzibitPluginClass
   MutterPluginClass parent_class;
 };
 
+typedef struct _XzibitSendingWindow {
+  Window window;
+  gchar *source;
+  gchar *target;
+} XzibitSendingWindow;
+
 static void start (MutterPlugin *plugin);
 static gboolean xevent_filter (MutterPlugin *plugin,
                                XEvent      *event);
@@ -880,7 +886,7 @@ copy_client_to_bottom (GIOChannel *source,
  */
 static void
 share_window (Display *dpy,
-              Window window, MutterPlugin *plugin)
+              XzibitSendingWindow* window, MutterPlugin *plugin)
 {
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GError *error = NULL;
@@ -898,14 +904,14 @@ share_window (Display *dpy,
 
   g_print ("[%s] Share window %x...",
            gdk_display_get_name (gdk_display_get_default()),
-           (int) window
+           (int) window->window
            );
 
   forward_data = g_malloc(sizeof(ForwardedWindow));
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
-  forward_data->window = window;
-  forward_data->client_fd = vnc_fd (window);
+  forward_data->window = window->window;
+  forward_data->client_fd = vnc_fd (window->window);
 
   key = g_malloc (sizeof (int));
   *key = xzibit_id;
@@ -915,7 +921,7 @@ share_window (Display *dpy,
                        forward_data);
 
   key = g_malloc (sizeof (int));
-  *key = (int) window;
+  *key = (int) window->window;
 
   g_hash_table_insert (priv->forwarded_windows_by_x11_id,
                        key,
@@ -924,8 +930,8 @@ share_window (Display *dpy,
   if (forward_data->client_fd==-1)
     {
       /* Not yet opened: open it */
-      vnc_start (window);
-      forward_data->client_fd = vnc_fd (window);
+      vnc_start (window->window);
+      forward_data->client_fd = vnc_fd (window->window);
     }
 
   /* make sure we have the bottom connection */
@@ -993,7 +999,7 @@ share_window (Display *dpy,
 
   /* FIXME: We should also consider WM_NAME */
   if (XGetWindowProperty(dpy,
-                         window,
+                         window->window,
                          gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
                          0,
                          1024,
@@ -1009,7 +1015,7 @@ share_window (Display *dpy,
     }
 
   if (XGetWindowProperty(dpy,
-                         window,
+                         window->window,
                          gdk_x11_get_xatom_by_name ("_NET_WM_WINDOW_TYPE"),
                          0,
                          1,
@@ -1111,6 +1117,62 @@ window_set_result_property (Display *dpy,
                    1);
 }
 
+XzibitSendingWindow* sending_window_new (Display *dpy,
+                                         Window window)
+{
+  XzibitSendingWindow *result = g_malloc (sizeof (XzibitSendingWindow));
+  Atom actual_type;
+  int actual_format;
+  unsigned long n_items, bytes_after;
+  unsigned char *property;
+  
+  result->window = window;
+
+  if (XGetWindowProperty(dpy,
+                         window,
+                         gdk_x11_get_xatom_by_name ("_XZIBIT_SOURCE"),
+                         0,
+                         1024,
+                         False,
+                         gdk_x11_get_xatom_by_name ("UTF8_STRING"),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)==Success)
+    {
+      result->source = g_strdup (property);
+    }
+  else
+    {
+      result->source = NULL;
+    }
+  XFree (property);
+
+  if (XGetWindowProperty(dpy,
+                         window,
+                         gdk_x11_get_xatom_by_name ("_XZIBIT_TARGET"),
+                         0,
+                         1024,
+                         False,
+                         gdk_x11_get_xatom_by_name ("UTF8_STRING"),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)==Success)
+    {
+      result->target = g_strdup (property);
+    }
+  else
+    {
+      result->target = NULL;
+    }
+  XFree (property);
+
+  return result;
+}
+
 /**
  * Responds to a change in a window's sharing property,
  * such as by sharing or unsharing the window.
@@ -1119,6 +1181,8 @@ static void
 set_sharing_state (Display *dpy,
                    Window window, int sharing_state, MutterPlugin *plugin)
 {
+  XzibitSendingWindow *sending;
+
   if (sharing_state == 2 || sharing_state == 3)
     {
       /* not our concern, but set the response property */
@@ -1131,7 +1195,8 @@ set_sharing_state (Display *dpy,
     {
     case 1:
       /* we are starting to share this window */
-      share_window (dpy, window, plugin);
+      sending = sending_window_new (dpy, window);
+      share_window (dpy, sending, plugin);
       window_set_result_property (dpy, window,
                                   101);
       break;
@@ -1582,6 +1647,7 @@ share_transiency_on_map (MutterPlugin *plugin,
   guint32 client_leader;
   guint32 *sharing;
   Display *dpy = map_event->display;
+  XzibitSendingWindow *sending;
 
   /* g_warning ("Transiency check for %x starting\n", (int) map_event->window); */
 
@@ -1602,9 +1668,12 @@ share_transiency_on_map (MutterPlugin *plugin,
                        PropModeReplace,
                        (const unsigned char*) &window_is_shared,
                        1);
+
+      sending = sending_window_new (dpy,
+                                    window);
             
       share_window (dpy,
-                    window,
+                    sending,
                     plugin);
     }
 }
