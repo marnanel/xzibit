@@ -1197,8 +1197,6 @@ set_sharing_state (Display *dpy,
       /* we are starting to share this window */
       sending = sending_window_new (dpy, window);
       share_window (dpy, sending, plugin);
-      window_set_result_property (dpy, window,
-                                  101);
       break;
 
     case 0:
