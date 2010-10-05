@@ -204,6 +204,10 @@ struct _MutterXzibitPluginPrivate
    * not currently receiving a block.
    */
   unsigned char *bottom_buffer;
+  /**
+   * A handle on the bus.
+   */
+  TpDBusDaemon *dbus;
 };
 
 /**
@@ -518,6 +522,7 @@ start (MutterPlugin *plugin)
   MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   const gchar *test_command = g_getenv("XZIBIT_TEST");
   XzibitStartMode start_mode = XZIBIT_START_MODE_TUBES;
+  GError *error = NULL;
 
   g_warning ("(xzibit plugin is starting)");
 
@@ -542,25 +547,23 @@ start (MutterPlugin *plugin)
   else
     start_mode = XZIBIT_START_MODE_TEST_SERVER;
 
+  g_warning ("In ordinary tubes mode.");
+
+  priv->dbus = tp_dbus_daemon_dup (&error);
+  if (priv->dbus == NULL)
+    {
+      g_error ("Cannot get a handle on D-Bus.");
+      return;
+    }
+
   if (start_mode==XZIBIT_START_MODE_TUBES)
     {
       // This is not a test.
 
-      TpDBusDaemon *dbus = NULL;
       TpBaseClient *client = NULL;
       gboolean success = TRUE;
-      GError *error = NULL;
 
-      g_warning ("In ordinary tubes mode.");
-
-      dbus = tp_dbus_daemon_dup (&error);
-      if (dbus == NULL)
-        {
-          g_error ("Cannot get a handle on D-Bus.");
-          return;
-        }
-
-      client = tp_simple_handler_new (dbus, FALSE, FALSE, "Xzibit",
+      client = tp_simple_handler_new (priv->dbus, FALSE, FALSE, "Xzibit",
                                       FALSE, got_channel_cb, NULL, NULL);
 
       tp_base_client_take_handler_filter (client, tp_asv_new (
