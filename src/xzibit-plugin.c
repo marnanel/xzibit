@@ -127,6 +127,10 @@ static gboolean accept_connections (GIOChannel *source,
 
 static const MutterPluginInfo * plugin_info (MutterPlugin *plugin);
 
+static void window_set_result_property (Display *dpy,
+                                        Window window,
+                                        guint32 value);
+
 MUTTER_PLUGIN_DECLARE(MutterXzibitPlugin, mutter_xzibit_plugin);
 
 /**
@@ -208,6 +212,10 @@ struct _MutterXzibitPluginPrivate
    * A handle on the bus.
    */
   TpDBusDaemon *dbus;
+  /**
+   * The Telepathy account we're sending from.
+   */
+  TpAccount *sending_account;
 };
 
 /**
@@ -885,103 +893,25 @@ copy_client_to_bottom (GIOChannel *source,
 }
 
 /**
- * Initiates the sharing of a given window.
+ * Finishes sharing a window; this is the second half of share_window().
+ * It's either called immediately, if the tube is already open, or later,
+ * if the tube wasn't open, when the tube is ready.
  */
 static void
-share_window (Display *dpy,
-              XzibitSendingWindow* window, MutterPlugin *plugin)
+share_window_finish (Display *dpy,
+                     XzibitSendingWindow* window, MutterPlugin *plugin,
+                     int xzibit_id,
+                     ForwardedWindow *forward_data)
 {
-  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  GError *error = NULL;
-  unsigned char message[11];
+  GIOChannel *channel;
   Atom actual_type;
   int actual_format;
   unsigned long n_items, bytes_after;
   unsigned char *property;
   unsigned char *name_of_window = "";
   unsigned char type_of_window[2] = { 0, 0 };
-  int xzibit_id = ++highest_channel;
-  GIOChannel *channel;
-  ForwardedWindow *forward_data;
-  int *client_fd, *key;
 
-  g_print ("[%s] Share window %x...",
-           gdk_display_get_name (gdk_display_get_default()),
-           (int) window->window
-           );
-
-  forward_data = g_malloc(sizeof(ForwardedWindow));
-  forward_data->plugin = plugin;
-  forward_data->channel = xzibit_id;
-  forward_data->window = window->window;
-  forward_data->client_fd = vnc_fd (window->window);
-
-  key = g_malloc (sizeof (int));
-  *key = xzibit_id;
-
-  g_hash_table_insert (priv->forwarded_windows_by_xzibit_id,
-                       key,
-                       forward_data);
-
-  key = g_malloc (sizeof (int));
-  *key = (int) window->window;
-
-  g_hash_table_insert (priv->forwarded_windows_by_x11_id,
-                       key,
-                       forward_data);
-
-  if (forward_data->client_fd==-1)
-    {
-      /* Not yet opened: open it */
-      vnc_start (window->window);
-      forward_data->client_fd = vnc_fd (window->window);
-    }
-
-  /* make sure we have the bottom connection */
-
-  /* in real life, here we would connect over Tubes.
-     instead, we connect to the other test instance.
-  */
-
-  if (priv->bottom_fd==-1)
-    {
-      struct sockaddr_in addr;
-      GIOChannel *channel;
-
-      memset (&addr, 0, sizeof (addr));
-      addr.sin_family = AF_INET;
-      addr.sin_port = htons (XZIBIT_PORT);
-      addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
-
-      priv->bottom_fd = socket (PF_INET,
-                                SOCK_STREAM,
-                                IPPROTO_TCP);
-
-      if (priv->bottom_fd < 0)
-        {
-          g_error ("Could not create a socket; things will break\n");
-        }
-      
-      if (connect (priv->bottom_fd,
-                   (struct sockaddr*) &addr,
-                   sizeof(addr))!=0)
-        {
-          perror ("xzibit");
-
-          g_error ("Could not talk to the other xzibit process.\n");
-        }
-
-      channel = g_io_channel_unix_new (priv->bottom_fd);
-
-      g_io_add_watch (channel,
-                      G_IO_IN,
-                      copy_bottom_to_client,
-                      plugin);
-      
-      g_print ("Okay, we should have a connection now\n");
-    }
-
-  /* and tell our counterpart about it */
+  /* Tell our counterpart about it */
 
   send_from_bottom (plugin,
                     0, /* control channel */
@@ -1066,6 +996,120 @@ share_window (Display *dpy,
   /* we don't supply icons yet. */
 
   XFree (name_of_window);
+  g_free (window);
+}
+
+/**
+ * Called when the source account has been set up,
+ * and we need to set up the target account.
+ */
+static void
+account_prepare_cb (GObject *object,
+                    GAsyncResult *res,
+                    gpointer user_data)
+{
+  TpAccount *account = TP_ACCOUNT (object);
+  XzibitSendingWindow* window = user_data;
+
+  g_error ("Source account created");
+}
+
+/**
+ * Initiates the sharing of a given window.
+ */
+static void
+share_window (Display *dpy,
+              XzibitSendingWindow* window, MutterPlugin *plugin)
+{
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  GError *error = NULL;
+  unsigned char message[11];
+  int xzibit_id = ++highest_channel;
+  ForwardedWindow *forward_data;
+  int *client_fd, *key;
+
+  g_print ("[%s] Share window %x...",
+           gdk_display_get_name (gdk_display_get_default()),
+           (int) window->window
+           );
+
+  forward_data = g_malloc(sizeof(ForwardedWindow));
+  forward_data->plugin = plugin;
+  forward_data->channel = xzibit_id;
+  forward_data->window = window->window;
+  forward_data->client_fd = vnc_fd (window->window);
+
+  key = g_malloc (sizeof (int));
+  *key = xzibit_id;
+
+  g_hash_table_insert (priv->forwarded_windows_by_xzibit_id,
+                       key,
+                       forward_data);
+
+  key = g_malloc (sizeof (int));
+  *key = (int) window->window;
+
+  g_hash_table_insert (priv->forwarded_windows_by_x11_id,
+                       key,
+                       forward_data);
+
+  if (forward_data->client_fd==-1)
+    {
+      /* Not yet opened: open it */
+      vnc_start (window->window);
+      forward_data->client_fd = vnc_fd (window->window);
+    }
+
+  /* make sure we have the bottom connection */
+
+  if (priv->bottom_fd==-1)
+    {
+      /*
+       * the tube isn't yet open.  Create it,
+       * open a connection to it, and put the
+       * fd in priv->bottom_fd.
+       */
+
+      if (window->source)
+        {
+          if (!g_str_has_prefix (window->source, TP_ACCOUNT_OBJECT_PATH_BASE))
+            {
+              gchar *account_id = window->source;
+              
+              window->source = g_strconcat (TP_ACCOUNT_OBJECT_PATH_BASE,
+                                            account_id, NULL);
+
+              g_free (account_id);
+            }
+
+          priv->sending_account = tp_account_new (priv->dbus,
+                                                  window->source, &error);
+          if (priv->sending_account == NULL)
+            {
+              g_warning ("No such sending account: %s", window->source);
+              window_set_result_property (dpy, window->window,
+                                          301);
+              g_free (window);
+              return;
+            }
+
+          tp_proxy_prepare_async (TP_PROXY (priv->sending_account),
+                                  NULL,
+                                  account_prepare_cb, window);
+          return;
+        }
+      else
+        {
+          g_warning ("No sending account.");
+          window_set_result_property (dpy, window->window,
+                                      301);
+          g_free (window);
+          return;
+        }
+    }
+
+  share_window_finish (dpy, window, plugin,
+                       xzibit_id, forward_data);
 }
 
 /**
