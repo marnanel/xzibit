@@ -106,6 +106,7 @@ struct _MutterXzibitPluginClass
 };
 
 typedef struct _XzibitSendingWindow {
+  Display *dpy;
   Window window;
   gchar *source;
   gchar *target;
@@ -1000,8 +1001,21 @@ share_window_finish (Display *dpy,
 }
 
 /**
- * Called when the source account has been set up,
- * and we need to set up the target account.
+ * Part three of setting up the tube.
+ */
+static void
+connection_prepare_cb (GObject *object,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  TpConnection *connection = TP_CONNECTION (object);
+  XzibitSendingWindow* window = user_data;
+
+  g_error ("Connection prepare callback here.");
+}
+
+/**
+ * Part two of setting up the tube.
  */
 static void
 account_prepare_cb (GObject *object,
@@ -1010,8 +1024,38 @@ account_prepare_cb (GObject *object,
 {
   TpAccount *account = TP_ACCOUNT (object);
   XzibitSendingWindow* window = user_data;
+  GQuark features[] = { TP_CONNECTION_FEATURE_CAPABILITIES, 0 };
+  TpConnection *connection;
+  GError *error = NULL;
 
-  g_error ("Source account created");
+  if (!tp_proxy_prepare_finish (TP_PROXY (account), res, &error))
+    {
+      g_warning ("Problem creating source account: %s",
+                 error->message);
+      window_set_result_property (window->dpy, window->window,
+                                  301);
+      g_free (window);
+      return;
+    }
+
+  connection = tp_account_get_connection (account);
+  if (connection == NULL)
+    {
+      g_warning ("Account not online");
+      /*
+       * FIXME: Possibly this should have a different
+       * error code from the others.  The account
+       * does exist: it's just not online.
+       */
+      window_set_result_property (window->dpy, window->window,
+                                  301);
+      g_free (window);
+      return;
+    }
+
+  /* okay, great, so set up the target account */
+  tp_proxy_prepare_async (TP_PROXY (connection), features,
+      connection_prepare_cb, window);
 }
 
 /**
@@ -1173,6 +1217,7 @@ XzibitSendingWindow* sending_window_new (Display *dpy,
   unsigned long n_items, bytes_after;
   unsigned char *property;
   
+  result->dpy = dpy;
   result->window = window;
 
   if (XGetWindowProperty(dpy,
