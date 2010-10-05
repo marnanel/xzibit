@@ -1001,6 +1001,53 @@ share_window_finish (Display *dpy,
 }
 
 /**
+ * Returns whether a set of capabilities contains
+ * the capability of streaming tubes.
+ *
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ *
+ * \param caps  The capabilities to check.
+ * \result TRUE if caps contains the ability to
+ *         stream tubes; FALSE otherwise.
+ */
+gboolean
+capabilities_has_stream_tube (TpCapabilities *caps)
+{
+  GPtrArray *classes;
+  guint i;
+
+  if (caps == NULL)
+    return FALSE;
+
+  classes = tp_capabilities_get_channel_classes (caps);
+  for (i = 0; i < classes->len; i++)
+    {
+      GValueArray *arr = g_ptr_array_index (classes, i);
+      GHashTable *fixed;
+      const gchar *chan_type;
+      const gchar *service;
+      TpHandleType handle_type;
+
+      fixed = g_value_get_boxed (g_value_array_get_nth (arr, 0));
+      chan_type = tp_asv_get_string (fixed, TP_PROP_CHANNEL_CHANNEL_TYPE);
+      service = tp_asv_get_string (fixed,
+          TP_PROP_CHANNEL_TYPE_STREAM_TUBE_SERVICE);
+      handle_type = tp_asv_get_uint32 (fixed,
+          TP_PROP_CHANNEL_TARGET_HANDLE_TYPE, NULL);
+
+      if (!tp_strdiff (chan_type, TP_IFACE_CHANNEL_TYPE_STREAM_TUBE) &&
+          handle_type == TP_HANDLE_TYPE_CONTACT &&
+          (!tp_capabilities_is_specific_to_contact (caps) ||
+           !tp_strdiff (service, TUBE_SERVICE)))
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/**
  * Part three of setting up the tube.
  */
 static void
@@ -1011,7 +1058,17 @@ connection_prepare_cb (GObject *object,
   TpConnection *connection = TP_CONNECTION (object);
   XzibitSendingWindow* window = user_data;
 
-  g_error ("Connection prepare callback here.");
+  if (!tp_proxy_prepare_finish (TP_PROXY (connection), res, NULL) ||
+      !capabilities_has_stream_tube (tp_connection_get_capabilities (connection)))
+    {
+      g_warning ("Problem finishing preparation of source account");
+      window_set_result_property (window->dpy, window->window,
+                                  301);
+      g_free (window);
+      return;
+    }
+
+  g_error ("Finished!");
 }
 
 /**
