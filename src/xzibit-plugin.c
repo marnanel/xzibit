@@ -1054,17 +1054,6 @@ client_create_tube_finish (GAsyncResult *result,
 }
 
 /**
- * Part five of setting up the tube.
- */
-static void
-create_channel_cb (GObject *acr,
-    GAsyncResult *res,
-    gpointer user_data)
-{
-  g_error ("Create channel callback (fixme)");
-}
-
-/**
  * Part four of setting up the tube.
  */
 static void
@@ -1210,6 +1199,7 @@ connection_prepare_cb (GObject *object,
       return;
     }
 
+  g_warning ("Here we go, let's do it");
   simple = g_simple_async_result_new (NULL, create_tube_cb,
                                       user_data,
                                       client_create_tube_finish);
@@ -1234,7 +1224,7 @@ connection_prepare_cb (GObject *object,
   acr = tp_account_channel_request_new (window->account,
                                         request, G_MAXINT64);
   tp_account_channel_request_create_and_handle_channel_async (acr,
-      data->op_cancellable, create_channel_cb, simple);
+      data->op_cancellable, create_tube_cb, simple);
 }
 
 /**
