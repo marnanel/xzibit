@@ -107,19 +107,6 @@ struct _MutterXzibitPluginClass
   MutterPluginClass parent_class;
 };
 
-typedef struct _XzibitSendingWindow {
-  Display *dpy;
-  Window window;
-  gchar *source;
-  gchar *target;
-
-  TpChannel *channel;
-  GSocketConnection *tube_connection;
-
-  TpAccount *account;
-
-} XzibitSendingWindow;
-
 typedef struct
 {
   GSocketConnection *connection;
@@ -299,6 +286,23 @@ typedef struct _ForwardedWindow {
   int client_fd;
 
 } ForwardedWindow;
+
+typedef struct _XzibitSendingWindow {
+  Display *dpy;
+  Window window;
+  gchar *source;
+  gchar *target;
+
+  TpChannel *channel;
+  GSocketConnection *tube_connection;
+
+  TpAccount *account;
+  int *target_fd;
+  MutterPlugin *plugin;
+
+  ForwardedWindow *forward_data;
+
+} XzibitSendingWindow;
 
 /* leave it turned off for now */
 #if 1
@@ -1159,7 +1163,29 @@ create_tube_cb (GObject *source_object,
 
   fd = g_socket_get_fd (socket);
 
-  g_error ("Part four!  The socket is %d", fd);
+  g_warning ("Part four!  The socket is %d", fd);
+
+  /* 
+   * So we now have a socket.  Share the window on
+   * that socket...
+   */
+
+  *(window->target_fd) = fd;
+
+  share_window_finish (window->dpy,
+                       window->window,
+                       window->plugin,
+                       window->forward_data->channel,
+                       window->forward_data);
+
+  /*
+   * ...and set the result to say that all is well.
+   */
+
+  window_set_result_property (window->dpy, window->window,
+                              102);
+
+  /* FIXME: Probably this is where we should g_free (window); */
 }
 
 /**
@@ -1560,6 +1586,10 @@ share_window (Display *dpy,
               g_free (window);
               return;
             }
+
+          window->forward_data = forward_data;
+          window->target_fd = &(priv->bottom_fd);
+          window->plugin = plugin;
 
           tp_proxy_prepare_async (TP_PROXY (priv->sending_account),
                                   NULL,
