@@ -37,6 +37,7 @@
 #include <gdk/gdkx.h>
 #include <X11/extensions/XI2.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include <libintl.h>
 #define _(x) dgettext (GETTEXT_PACKAGE, x)
@@ -52,6 +53,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <telepathy-glib/telepathy-glib.h>
+#include <gio/gunixsocketaddress.h>
 
 #define XZIBIT_PORT 1770
 #define TUBE_SERVICE "x-xzibit"
@@ -1025,6 +1027,62 @@ share_window_finish (Display *dpy,
  * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
  * Copyright (C) 2010 Collabora Ltd.
  */
+static void
+create_tube_complete (GSimpleAsyncResult *simple, const GError *error)
+{
+  CreateTubeData *data;
+
+  g_warning ("CTC 1");
+  data = g_simple_async_result_get_op_res_gpointer (simple);
+  g_warning ("CTC 2");
+
+  if (data->op_cancellable != NULL)
+    g_cancellable_cancel (data->op_cancellable);
+
+  if (data->offer_call != NULL)
+    tp_proxy_pending_call_cancel (data->offer_call);
+
+  if (data->cancelled_id != 0)
+    g_cancellable_disconnect (data->global_cancellable, data->cancelled_id);
+  data->cancelled_id = 0;
+
+  if (data->invalidated_id != 0)
+    g_signal_handler_disconnect (data->channel, data->invalidated_id);
+  data->invalidated_id = 0;
+
+  if (error != NULL)
+    g_simple_async_result_set_from_error (simple, error);
+  g_simple_async_result_complete_in_idle (simple);
+}
+
+/**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
+static void
+create_tube_offer_cb (TpChannel *channel,
+    const GError *error,
+    gpointer user_data,
+    GObject *weak_object)
+{
+  GSimpleAsyncResult *simple = user_data;
+  CreateTubeData *data;
+
+  g_warning ("CTOC 1");
+  data = g_simple_async_result_get_op_res_gpointer (simple);
+  g_warning ("CTOC 2");
+  data->offer_call = NULL;
+
+  if (error != NULL)
+    create_tube_complete (simple, error);
+}
+
+/**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
 GSocketConnection*
 client_create_tube_finish (GAsyncResult *result,
     TpChannel **channel,
@@ -1033,19 +1091,25 @@ client_create_tube_finish (GAsyncResult *result,
   GSimpleAsyncResult *simple;
   CreateTubeData *data;
 
+  g_warning ("client_create_tube_finish");
+
   g_return_val_if_fail (G_IS_SIMPLE_ASYNC_RESULT (result), NULL);
 
   simple = G_SIMPLE_ASYNC_RESULT (result);
 
   if (g_simple_async_result_propagate_error (simple, error))
-    return NULL;
+    {
+      return NULL;
+    }
 
   g_return_val_if_fail (g_simple_async_result_is_valid (result, NULL,
                                                         client_create_tube_finish),
                         NULL);
 
+  g_warning ("Thing 1");
   data = g_simple_async_result_get_op_res_gpointer (
       G_SIMPLE_ASYNC_RESULT (result));
+  g_warning ("Thing 2");
 
   if (channel != NULL)
     *channel = g_object_ref (data->channel);
@@ -1066,6 +1130,8 @@ create_tube_cb (GObject *source_object,
   GSocket *socket = NULL;
   int fd = 0;
   GError *error = NULL;
+
+  g_warning ("create_tube_cb");
 
   window->tube_connection = client_create_tube_finish (res,
                                                        &window->channel,
@@ -1095,6 +1161,163 @@ create_tube_cb (GObject *source_object,
 
   g_error ("Part four!  The socket is %d", fd);
 }
+
+/**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
+static void
+unix_path_destroy (gchar *unix_path)
+{
+  if (unix_path != NULL)
+    {
+      gchar *p;
+
+      g_unlink (unix_path);
+      p = g_strrstr (unix_path, G_DIR_SEPARATOR_S);
+      *p = '\0';
+      g_rmdir (unix_path);
+      g_free (unix_path);
+    }
+}
+
+
+/**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
+static void
+create_tube_socket_connected_cb (GObject *source_object,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  GSimpleAsyncResult *simple = user_data;
+  CreateTubeData *data;
+  GSocketListener *listener = G_SOCKET_LISTENER (source_object);
+  GError *error = NULL;
+
+  g_warning ("Chose 1");
+  data = g_simple_async_result_get_op_res_gpointer (simple);
+  g_warning ("Chose 2");
+
+  if (g_cancellable_is_cancelled (data->op_cancellable))
+    {
+      g_object_unref (simple);
+      return;
+    }
+
+  data->connection = g_socket_listener_accept_finish (listener, res, NULL,
+      &error);
+
+  if (data->connection != NULL)
+    {
+      /* Transfer ownership of unix path */
+      g_object_set_data_full (G_OBJECT (data->connection), "unix-path",
+          data->unix_path, (GDestroyNotify) unix_path_destroy);
+      data->unix_path = NULL;
+    }
+
+  create_tube_complete (simple, error);
+
+  g_clear_error (&error);
+  g_object_unref (simple);
+}
+
+/**
+ * From client-helpers.c by Xavier Classens
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ */
+static void
+create_channel_cb (GObject *acr,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  GSimpleAsyncResult *simple = user_data;
+  CreateTubeData *data;
+  GSocketListener *listener = NULL;
+  gchar *dir;
+  GSocket *socket = NULL;
+  GSocketAddress *socket_address = NULL;
+  GValue *address;
+  GHashTable *parameters;
+  GError *error = NULL;
+
+  g_warning ("Beth-yn-galw 1 %p", simple);
+  data = g_simple_async_result_get_op_res_gpointer (simple);
+  g_warning ("Beth-yn-galw 2");
+
+  if (g_cancellable_is_cancelled (data->op_cancellable))
+    {
+      g_object_unref (simple);
+      return;
+    }
+
+  data->channel = tp_account_channel_request_create_and_handle_channel_finish (
+      TP_ACCOUNT_CHANNEL_REQUEST (acr), res, NULL, &error);
+   if (data->channel == NULL)
+    goto OUT;
+
+  data->invalidated_id = g_signal_connect (data->channel, "invalidated",
+      G_CALLBACK (channel_invalidated_cb), simple);
+
+  /* We are client side, but we have to offer a socket... So we offer an unix
+   * socket on which the service side can connect. We also create an IPv4 socket
+   * on which the ssh client can connect. When both sockets are connected,
+   * we can forward all communications between them. */
+
+  listener = g_socket_listener_new ();
+
+  /* Create temporary file for our unix socket */
+  dir = g_build_filename (g_get_tmp_dir (), "xzibit-XXXXXX", NULL);
+  dir = mkdtemp (dir);
+  data->unix_path = g_build_filename (dir, "unix-socket", NULL);
+  g_free (dir);
+
+  /* Create the unix socket, and listen for connection on it */
+  socket = g_socket_new (G_SOCKET_FAMILY_UNIX, G_SOCKET_TYPE_STREAM,
+      G_SOCKET_PROTOCOL_DEFAULT, &error);
+  if (socket == NULL)
+    goto OUT;
+  socket_address = g_unix_socket_address_new (data->unix_path);
+  if (!g_socket_bind (socket, socket_address, FALSE, &error))
+    goto OUT; 
+  if (!g_socket_listen (socket, &error))
+    goto OUT;
+  if (!g_socket_listener_add_socket (listener, socket, NULL, &error))
+    goto OUT;
+
+  g_socket_listener_accept_async (listener, data->op_cancellable,
+    create_tube_socket_connected_cb, g_object_ref (simple));
+
+  /* Offer the socket */
+  address = tp_address_variant_from_g_socket_address (socket_address,
+      TP_SOCKET_ADDRESS_TYPE_UNIX, &error);
+  if (address == NULL)
+    goto OUT;
+  parameters = g_hash_table_new (NULL, NULL);
+  data->offer_call = tp_cli_channel_type_stream_tube_call_offer (data->channel,
+      -1,
+      TP_SOCKET_ADDRESS_TYPE_UNIX, address,
+      TP_SOCKET_ACCESS_CONTROL_LOCALHOST, parameters,
+      create_tube_offer_cb, g_object_ref (simple), g_object_unref, NULL);
+  tp_g_value_slice_free (address);
+  g_hash_table_unref (parameters);
+
+OUT:
+
+  if (error != NULL)
+    create_tube_complete (simple, error);
+
+  tp_clear_object (&listener);
+  tp_clear_object (&socket);
+  tp_clear_object (&socket_address);
+  g_clear_error (&error);
+  g_object_unref (simple);
+}
+
 
 /**
  * Returns whether a set of capabilities contains
@@ -1143,21 +1366,6 @@ capabilities_has_stream_tube (TpCapabilities *caps)
   return FALSE;
 }
 
-static void
-unix_path_destroy (gchar *unix_path)
-{
-  if (unix_path != NULL)
-    {
-      gchar *p;
-
-      g_unlink (unix_path);
-      p = g_strrstr (unix_path, G_DIR_SEPARATOR_S);
-      *p = '\0';
-      g_rmdir (unix_path);
-      g_free (unix_path);
-    }
-}
-
 /**
  * Destroys a CreateTubeData record.
  */
@@ -1199,7 +1407,6 @@ connection_prepare_cb (GObject *object,
       return;
     }
 
-  g_warning ("Here we go, let's do it");
   simple = g_simple_async_result_new (NULL, create_tube_cb,
                                       user_data,
                                       client_create_tube_finish);
@@ -1207,8 +1414,10 @@ connection_prepare_cb (GObject *object,
   data = g_slice_new0 (CreateTubeData);
   data->op_cancellable = g_cancellable_new ();
 
+  g_warning ("Whatsit 1 %p", simple);
   g_simple_async_result_set_op_res_gpointer (simple, data,
       (GDestroyNotify) create_tube_data_free);
+  g_warning ("Whatsit 2");
 
   request = tp_asv_new (
       TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
@@ -1223,8 +1432,9 @@ connection_prepare_cb (GObject *object,
 
   acr = tp_account_channel_request_new (window->account,
                                         request, G_MAXINT64);
+
   tp_account_channel_request_create_and_handle_channel_async (acr,
-      data->op_cancellable, create_tube_cb, simple);
+      data->op_cancellable, create_channel_cb, simple);
 }
 
 /**
