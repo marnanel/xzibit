@@ -1051,9 +1051,7 @@ create_tube_complete (GSimpleAsyncResult *simple, const GError *error)
 {
   CreateTubeData *data;
 
-  g_warning ("CTC 1");
   data = g_simple_async_result_get_op_res_gpointer (simple);
-  g_warning ("CTC 2");
 
   if (data->op_cancellable != NULL)
     g_cancellable_cancel (data->op_cancellable);
@@ -1088,9 +1086,7 @@ create_tube_offer_cb (TpChannel *channel,
   GSimpleAsyncResult *simple = user_data;
   CreateTubeData *data;
 
-  g_warning ("CTOC 1");
   data = g_simple_async_result_get_op_res_gpointer (simple);
-  g_warning ("CTOC 2");
   data->offer_call = NULL;
 
   if (error != NULL)
@@ -1125,10 +1121,8 @@ client_create_tube_finish (GAsyncResult *result,
                                                         client_create_tube_finish),
                         NULL);
 
-  g_warning ("Thing 1");
   data = g_simple_async_result_get_op_res_gpointer (
       G_SIMPLE_ASYNC_RESULT (result));
-  g_warning ("Thing 2");
 
   if (channel != NULL)
     *channel = g_object_ref (data->channel);
@@ -1243,9 +1237,7 @@ create_tube_socket_connected_cb (GObject *source_object,
   GSocketListener *listener = G_SOCKET_LISTENER (source_object);
   GError *error = NULL;
 
-  g_warning ("Chose 1");
   data = g_simple_async_result_get_op_res_gpointer (simple);
-  g_warning ("Chose 2");
 
   if (g_cancellable_is_cancelled (data->op_cancellable))
     {
@@ -1290,9 +1282,7 @@ create_channel_cb (GObject *acr,
   GHashTable *parameters;
   GError *error = NULL;
 
-  g_warning ("Beth-yn-galw 1 %p", simple);
   data = g_simple_async_result_get_op_res_gpointer (simple);
-  g_warning ("Beth-yn-galw 2");
 
   if (g_cancellable_is_cancelled (data->op_cancellable))
     {
@@ -1459,10 +1449,8 @@ connection_prepare_cb (GObject *object,
   data = g_slice_new0 (CreateTubeData);
   data->op_cancellable = g_cancellable_new ();
 
-  g_warning ("Whatsit 1 %p", simple);
   g_simple_async_result_set_op_res_gpointer (simple, data,
       (GDestroyNotify) create_tube_data_free);
-  g_warning ("Whatsit 2");
 
   request = tp_asv_new (
       TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
