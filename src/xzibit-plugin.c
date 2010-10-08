@@ -1129,7 +1129,6 @@ create_tube_cb (GObject *source_object,
     GAsyncResult *res,
     gpointer user_data)
 {
-  TpConnection *connection = TP_CONNECTION (source_object);
   XzibitSendingWindow* window = user_data;
   GSocket *socket = NULL;
   int fd = 0;
@@ -1166,26 +1165,24 @@ create_tube_cb (GObject *source_object,
   g_warning ("Part four!  The socket is %d", fd);
 
   /* 
-   * So we now have a socket.  Share the window on
-   * that socket...
-   */
-
-  *(window->target_fd) = fd;
-
-  share_window_finish (window->dpy,
-                       window->window,
-                       window->plugin,
-                       window->forward_data->channel,
-                       window->forward_data);
-
-  /*
-   * ...and set the result to say that all is well.
+   * So we now have a socket.  Set the result to say
+   * that all is well...
    */
 
   window_set_result_property (window->dpy, window->window,
                               102);
 
-  /* FIXME: Probably this is where we should g_free (window); */
+  /*
+   * ...and share the window.
+   */
+
+  *(window->target_fd) = fd;
+
+  share_window_finish (window->dpy,
+                       window,
+                       window->plugin,
+                       window->forward_data->channel,
+                       window->forward_data);
 }
 
 /**
@@ -1671,6 +1668,8 @@ XzibitSendingWindow* sending_window_new (Display *dpy,
   unsigned long n_items, bytes_after;
   unsigned char *property;
   
+  g_warning ("Sending window is %p with a dpy of %p",
+             result, dpy);
   result->dpy = dpy;
   result->window = window;
 
