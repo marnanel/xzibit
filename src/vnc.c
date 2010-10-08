@@ -412,6 +412,7 @@ vnc_start (Window id)
 
   private->width = width;
   private->height = height;
+  g_warning ("Window is %dx%d", width, height);
   private->window = gdk_window_foreign_new (id);
   private->screenshot = NULL;
   private->screenshot_checksum = 0;
