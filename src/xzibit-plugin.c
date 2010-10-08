@@ -943,7 +943,7 @@ share_window_finish (Display *dpy,
   if (forward_data->client_fd==-1)
     {
       /* Not yet opened: open it */
-      vnc_start (window->window);
+      vnc_create (window->window);
       forward_data->client_fd = vnc_fd (window->window);
     }
 
@@ -1030,6 +1030,12 @@ share_window_finish (Display *dpy,
                              1);
 
   /* we don't supply icons yet. */
+
+  /* Now start things going... */
+
+  vnc_start (window->window);
+
+  /* ...and clean up after ourselves. */
 
   XFree (name_of_window);
   g_free (window);

@@ -42,6 +42,7 @@ char* window_types[][2] = {
 
 typedef struct _VncPrivate {
   int fd;
+  int other_fd;
   int width, height;
   GdkWindow *window;
   GdkPixbuf *screenshot;
@@ -344,12 +345,10 @@ add_mpx_for_window (Window window, VncPrivate *private)
 }
 
 void
-vnc_start (Window id) {
-
+vnc_create (Window id)
+{
   VncPrivate *private = NULL;
   int *key;
-  Window root;
-  int x, y, width, height, border_width, depth;
   int sockets[2];
 
   ensure_servers ();
@@ -360,15 +359,7 @@ vnc_start (Window id) {
   if (private)
     return;
 
-  XGetGeometry (gdk_x11_get_default_xdisplay (),
-		id,
-		&root,
-		&x, &y,
-		&width, &height,
-		&border_width,
-		&depth);
-
-  g_warning ("Starting VNC server for %08x", (unsigned int) id);
+  g_warning ("Creating VNC server for %08x", (unsigned int) id);
 
   key = g_malloc (sizeof(int));
   *key = id;
@@ -377,6 +368,48 @@ vnc_start (Window id) {
 
   private = g_malloc (sizeof(VncPrivate));
   private->fd = sockets[0];
+  private->other_fd = sockets[1];
+  private->width = private->height = 0;
+
+  g_hash_table_insert (servers,
+		       key,
+		       private);
+}
+
+void
+vnc_start (Window id)
+{
+  VncPrivate *private = NULL;
+  Window root;
+  int x, y, width, height, border_width, depth;
+
+  g_warning ("Starting VNC server for %08x", (unsigned int) id);
+
+  private = g_hash_table_lookup (servers,
+				 &id);
+
+  if (!private)
+    {
+      g_warning ("Attempt to start %x which has not been created",
+		 (unsigned int) id);
+      return;
+    }
+
+  if (private->width != 0)
+    {
+      g_warning ("Attempt to start %x which has already been started",
+		 (unsigned int) id);
+      return;
+    }
+
+  XGetGeometry (gdk_x11_get_default_xdisplay (),
+		id,
+		&root,
+		&x, &y,
+		&width, &height,
+		&border_width,
+		&depth);
+
   private->width = width;
   private->height = height;
   private->window = gdk_window_foreign_new (id);
@@ -396,7 +429,7 @@ vnc_start (Window id) {
   private->rfb_screen->desktopName = "Chicken Man"; /* FIXME */
   private->rfb_screen->autoPort = FALSE;
   private->rfb_screen->port = 0;
-  private->rfb_screen->fdFromParent = sockets[1];
+  private->rfb_screen->fdFromParent = private->other_fd;
   private->rfb_screen->frameBuffer = NULL;
 
   rfbInitServer (private->rfb_screen);
@@ -404,10 +437,6 @@ vnc_start (Window id) {
   private->rfb_screen->screenData = private;
   private->rfb_screen->ptrAddEvent = handle_mouse_event;
   private->rfb_screen->kbdAddEvent = handle_keyboard_event;
-
-  g_hash_table_insert (servers,
-		       key,
-		       private);
 
   g_timeout_add (100,
 		 run_rfb_event_loop,

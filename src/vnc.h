@@ -12,6 +12,11 @@ extern int vnc_latestSerial;
  * If there is already a VNC server for the given ID,
  * does nothing.
  */
+void vnc_create (Window id);
+
+/**
+ * Starts the VNC server for the given X ID.
+ */
 void vnc_start (Window id);
 
 /**
