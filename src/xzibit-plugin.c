@@ -938,6 +938,15 @@ share_window_finish (Display *dpy,
   unsigned char *name_of_window = "";
   unsigned char type_of_window[2] = { 0, 0 };
 
+  /* Kick off VNC as appropriate */
+
+  if (forward_data->client_fd==-1)
+    {
+      /* Not yet opened: open it */
+      vnc_start (window->window);
+      forward_data->client_fd = vnc_fd (window->window);
+    }
+
   /* Tell our counterpart about it */
 
   send_from_bottom (plugin,
@@ -1542,13 +1551,6 @@ share_window (Display *dpy,
   g_hash_table_insert (priv->forwarded_windows_by_x11_id,
                        key,
                        forward_data);
-
-  if (forward_data->client_fd==-1)
-    {
-      /* Not yet opened: open it */
-      vnc_start (window->window);
-      forward_data->client_fd = vnc_fd (window->window);
-    }
 
   /* make sure we have the bottom connection */
 
