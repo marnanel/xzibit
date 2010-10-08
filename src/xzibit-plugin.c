@@ -305,7 +305,7 @@ typedef struct _XzibitSendingWindow {
 } XzibitSendingWindow;
 
 /* leave it turned off for now */
-#if 1
+#if 0
 
 /**
  * Dumps a stream of data as it's on its way somewhere.
