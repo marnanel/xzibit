@@ -1147,6 +1147,7 @@ create_tube_cb (GObject *source_object,
   XzibitSendingWindow* window = user_data;
   GSocket *socket = NULL;
   int fd = 0;
+  GIOChannel *channel;
   GError *error = NULL;
 
   g_warning ("create_tube_cb");
@@ -1192,6 +1193,12 @@ create_tube_cb (GObject *source_object,
    */
 
   *(window->target_fd) = fd;
+
+  channel = g_io_channel_unix_new (fd);
+  g_io_add_watch (channel,
+                  G_IO_IN,
+                  copy_bottom_to_client,
+                  window->plugin);
 
   share_window_finish (window->dpy,
                        window,
