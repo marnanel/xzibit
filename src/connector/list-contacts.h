@@ -39,7 +39,8 @@
  * When all possibilities are exhausted, it will be
  * called one final time with both set to NULL.
  */
-typedef void list_contacts_cb(const gchar*, const gchar*);
+typedef void list_contacts_cb(const gchar*, const gchar*,
+			      void *);
 
 /**
  * Lists all (account, contact) pairs where both sides
@@ -51,6 +52,7 @@ typedef void list_contacts_cb(const gchar*, const gchar*);
  *                        such as "x-xzibit".
  */
 void list_contacts (list_contacts_cb *callback,
-		    gchar *wanted_service);
+		    gchar *wanted_service,
+		    gpointer user_data);
 
 #endif /* !LIST_CONTACTS_H */

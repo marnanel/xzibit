@@ -40,6 +40,7 @@ typedef struct _ClientContext {
   list_contacts_cb *callback;
   gchar *wanted_service;
   GList *accounts;
+  gpointer user_data;
 } ClientContext;
 
 typedef struct _AccountFindingContacts {
@@ -127,14 +128,16 @@ got_contacts_cb (TpConnection *connection,
       TpContact *contact = l->data;
 
       afc->context->callback (afc->source_account,
-			      tp_contact_get_identifier (contact));
+			      tp_contact_get_identifier (contact),
+			      afc->context->user_data);
     }
 
   g_list_free (candidates);
 
   if (--(afc->context->n_pending_accounts)==0)
     {
-      afc->context->callback (NULL, NULL);
+      afc->context->callback (NULL, NULL,
+			      afc->context->user_data);
       g_free (afc->context->wanted_service);
       g_free (afc->context);
     }
@@ -343,7 +346,8 @@ account_manager_prepare_cb (GObject *object,
 
 void
 list_contacts (list_contacts_cb *callback,
-	       gchar *wanted_service)
+	       gchar *wanted_service,
+	       gpointer user_data)
 {
   TpDBusDaemon *dbus = NULL;
   GError *error = NULL;
@@ -364,6 +368,7 @@ list_contacts (list_contacts_cb *callback,
   context->n_pending_accounts = 0;
   context->callback = callback;
   context->wanted_service = g_strdup (wanted_service);
+  context->user_data = user_data;
 
   manager = tp_account_manager_new (dbus);
   tp_proxy_prepare_async (TP_PROXY (manager), NULL,
@@ -376,10 +381,11 @@ list_contacts (list_contacts_cb *callback,
 #ifdef LIST_CONTACTS_TEST
 
 void
-dumper (const gchar *source, const gchar *target)
+dumper (const gchar *source, const gchar *target,
+	gpointer user_data)
 {
-  g_warning ("Mapping: %s -> %s",
-	     source, target);
+  g_warning ("Mapping: %s -> %s (%p)",
+	     source, target, user_data);
 }
 
 int
@@ -392,7 +398,8 @@ main(int argc, char **argv)
   loop = g_main_loop_new (NULL, FALSE);
 
   list_contacts (dumper,
-		 "x-xzibit");
+		 "x-xzibit",
+		 NULL);
 
   g_main_loop_run (loop);
 }
