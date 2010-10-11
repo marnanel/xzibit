@@ -77,44 +77,36 @@ got_contacts_cb (TpConnection *connection,
 
   if (error != NULL)
     {
-      g_print ("Error: %s\n", error->message);
+      g_warning ("Error: %s\n", error->message);
       /* not freeing because it's const */
       return;
     }
 
-  g_print ("=== For %s ===\n",
-	   afc->source_account);
-
   /* Build a list of all contacts supporting StreamTube */
   for (i = 0; i < n_contacts; i++)
-    if (_capabilities_has_stream_tube (tp_contact_get_capabilities (contacts[i]),
-				       afc->context->wanted_service))
-      candidates = g_list_prepend (candidates, contacts[i]);
+    {
+      if (_capabilities_has_stream_tube (tp_contact_get_capabilities (contacts[i]),
+					 afc->context->wanted_service))
+	candidates = g_list_prepend (candidates, contacts[i]);
+    }
 
   if (candidates == NULL)
     {
-      g_print ("No suitable contact\n");
+      g_warning ("No suitable contact\n");
       return;
     }
 
-  /* Ask the user which candidate to use */
   for (l = candidates; l != NULL; l = l->next)
     {
       TpContact *contact = l->data;
 
-      g_print ("%s (%s)\n", tp_contact_get_alias (contact),
-          tp_contact_get_identifier (contact));
-    }
-
-  g_print ("Which contact to use? ");
-  str = fgets (buffer, sizeof (buffer), stdin);
-  if (str != NULL)
-    {
-      str[strlen (str) - 1] = '\0';
-      l = g_list_nth (candidates, atoi (str) - 1);
+      afc->context->callback (afc->source_account,
+			      tp_contact_get_identifier (contact));
     }
 
   g_list_free (candidates);
+
+  /* FIXME: and free afc */
 }
 
 static void
@@ -228,9 +220,6 @@ connection_prepare_cb (GObject *object,
 
       while (cursor)
 	{
-	  g_warning ("Account == %s",
-		     tp_proxy_get_object_path (cursor->data));
-
 	  afc = g_malloc (sizeof (AccountFindingContacts));
 	  afc->source_account = g_strdup (tp_proxy_get_object_path (cursor->data));
 	  afc->context = context;
@@ -255,8 +244,6 @@ connection_prepare_cb (GObject *object,
 
 	  cursor = cursor->next;
 	}
-
-      g_warning ("That's all.");
 
       /* FIXME: and free stuff */
     }
@@ -348,7 +335,7 @@ list_contacts (list_contacts_cb *callback,
 }
 
 void
-dumper (gchar *source, gchar *target)
+dumper (const gchar *source, const gchar *target)
 {
   g_warning ("Mapping: %s -> %s",
 	     source, target);
