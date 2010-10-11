@@ -8,6 +8,7 @@ typedef struct _ContactContext {
   GtkTreeModel *model;
   GtkWidget *treeview;
   GtkWidget *label;
+  GHashTable *sources;
 } ContactContext;
 
 GtkWidget*
@@ -45,6 +46,11 @@ show_contact_chooser (int window_id,
   context->model =
     GTK_TREE_MODEL (gtk_list_store_new (1,
 					G_TYPE_STRING));
+  context->sources =
+    g_hash_table_new_full (g_str_hash,
+			   g_str_equal,
+			   g_free,
+			   g_free);
 
   treeview =
     gtk_tree_view_new_with_model (context->model);
