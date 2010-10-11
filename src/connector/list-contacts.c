@@ -16,6 +16,11 @@ typedef struct _ClientContext {
   GList *accounts;
 } ClientContext;
 
+typedef struct _AccountFindingContacts {
+  gchar *source_account;
+  ClientContext *context;
+} AccountFindingContacts;
+
 static gboolean
 _capabilities_has_stream_tube (TpCapabilities *caps,
 			       gchar *wanted_service)
@@ -54,6 +59,136 @@ _capabilities_has_stream_tube (TpCapabilities *caps,
 }
 
 static void
+got_contacts_cb (TpConnection *connection,
+    guint n_contacts,
+    TpContact * const *contacts,
+    guint n_failed,
+    const TpHandle *failed,
+    const GError *error,
+    gpointer user_data,
+    GObject *weak_object)
+{
+  AccountFindingContacts *afc = user_data;
+  guint i;
+  GList *candidates = NULL, *l;
+  guint count = 0;
+  gchar buffer[10];
+  gchar *str;
+
+  if (error != NULL)
+    {
+      g_print ("Error: %s\n", error->message);
+      /* not freeing because it's const */
+      return;
+    }
+
+  g_print ("=== For %s ===\n",
+	   afc->source_account);
+
+  /* Build a list of all contacts supporting StreamTube */
+  for (i = 0; i < n_contacts; i++)
+    if (_capabilities_has_stream_tube (tp_contact_get_capabilities (contacts[i]),
+				       afc->context->wanted_service))
+      candidates = g_list_prepend (candidates, contacts[i]);
+
+  if (candidates == NULL)
+    {
+      g_print ("No suitable contact\n");
+      return;
+    }
+
+  /* Ask the user which candidate to use */
+  for (l = candidates; l != NULL; l = l->next)
+    {
+      TpContact *contact = l->data;
+
+      g_print ("%s (%s)\n", tp_contact_get_alias (contact),
+          tp_contact_get_identifier (contact));
+    }
+
+  g_print ("Which contact to use? ");
+  str = fgets (buffer, sizeof (buffer), stdin);
+  if (str != NULL)
+    {
+      str[strlen (str) - 1] = '\0';
+      l = g_list_nth (candidates, atoi (str) - 1);
+    }
+
+  g_list_free (candidates);
+}
+
+static void
+stored_channel_prepare_cb (GObject *object,
+    GAsyncResult *res,
+    gpointer user_data)
+{
+  AccountFindingContacts *afc = user_data;
+  TpChannel *channel = TP_CHANNEL (object);
+  TpConnection *connection;
+  TpContactFeature features[] = { TP_CONTACT_FEATURE_ALIAS,
+      TP_CONTACT_FEATURE_CAPABILITIES };
+  const TpIntSet *set;
+  GArray *handles;
+  GError *error = NULL;
+
+  if (!tp_proxy_prepare_finish (channel, res, &error))
+    {
+      g_warning ("Error finishing proxy: %s",
+		 error->message);
+      g_clear_error (&error);
+      return;
+    }
+
+  connection = tp_channel_borrow_connection (channel);
+  set = tp_channel_group_get_members (channel);
+  handles = tp_intset_to_array (set);
+
+  tp_connection_get_contacts_by_handle (connection, handles->len,
+      (TpHandle *) handles->data, G_N_ELEMENTS (features), features,
+      got_contacts_cb, afc, NULL, NULL);
+
+  g_array_unref (handles);
+}
+
+static void
+ensure_stored_channel_cb (TpConnection *connection,
+    gboolean yours,
+    const gchar *channel_path,
+    GHashTable *properties,
+    const GError *error,
+    gpointer user_data,
+    GObject *weak_object)
+{
+  AccountFindingContacts *afc = user_data;
+  TpChannel *channel;
+  GQuark features[] = { TP_CHANNEL_FEATURE_GROUP, 0 };
+  GError *err = NULL;
+
+  if (error != NULL)
+    {
+      g_warning ("Error ensuring stored channel: %s",
+		 err->message);
+      g_clear_error (&err);
+      return;
+    }
+
+  channel = tp_channel_new_from_properties (connection, channel_path,
+      properties, &err);
+  if (channel == NULL)
+    {
+      g_warning ("Error creating channel: %s",
+		 err->message);
+      g_clear_error (&err);
+      return;
+    }
+
+  tp_proxy_prepare_async (TP_PROXY (channel), features,
+      stored_channel_prepare_cb, afc);
+
+  g_object_unref (channel);
+}
+
+static void
 connection_prepare_cb (GObject *object,
     GAsyncResult *res,
     gpointer user_data)
@@ -77,14 +212,47 @@ connection_prepare_cb (GObject *object,
           }
     }
 
+  /* Are we done? */
   if (--context->n_readying_connections == 0)
     {
+
+      /*
+       * Yes.  Go through all the accounts and find
+       * their contacts.
+       */
+
       GList *cursor = context->accounts;
+      TpConnection *associated_connection;
+      GHashTable *request;
+      AccountFindingContacts *afc;
 
       while (cursor)
 	{
 	  g_warning ("Account == %s",
 		     tp_proxy_get_object_path (cursor->data));
+
+	  afc = g_malloc (sizeof (AccountFindingContacts));
+	  afc->source_account = g_strdup (tp_proxy_get_object_path (cursor->data));
+	  afc->context = context;
+
+	  request = tp_asv_new (
+				TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
+				TP_IFACE_CHANNEL_TYPE_CONTACT_LIST,
+				TP_PROP_CHANNEL_TARGET_HANDLE_TYPE, G_TYPE_UINT,
+				TP_HANDLE_TYPE_LIST,
+				TP_PROP_CHANNEL_TARGET_ID, G_TYPE_STRING,
+				"stored",
+				NULL);
+
+	  connection = tp_account_get_connection (cursor->data);
+
+	  tp_cli_connection_interface_requests_call_ensure_channel (connection, -1,
+								    request,
+								    ensure_stored_channel_cb,
+								    afc, NULL, NULL);
+
+	  g_hash_table_unref (request);
+
 	  cursor = cursor->next;
 	}
 
