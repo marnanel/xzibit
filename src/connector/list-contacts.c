@@ -1,3 +1,28 @@
+/*
+ * list-contacts - subsystem to list all contacts with
+ *                 given caps
+ *
+ * Copyright (C) 2010 Collabora Ltd.
+ * Based on telepathy-ssh:
+ * Copyright (C) 2010 Xavier Claessens <xclaesse@gmail.com>
+ * Copyright (C) 2010 Collabora Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program; if not, write to the
+ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+ * Boston, MA  02110-1301  USA
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +36,7 @@
 
 typedef struct _ClientContext {
   guint n_readying_connections;
+  guint n_pending_accounts;
   list_contacts_cb *callback;
   gchar *wanted_service;
   GList *accounts;
@@ -105,6 +131,16 @@ got_contacts_cb (TpConnection *connection,
     }
 
   g_list_free (candidates);
+
+  if (--(afc->context->n_pending_accounts)==0)
+    {
+      afc->context->callback (NULL, NULL);
+      g_free (afc->context->wanted_service);
+      g_free (afc->context);
+    }
+
+  g_free (afc->source_account);
+  g_free (afc);
 
   /* FIXME: and free afc */
 }
@@ -224,6 +260,8 @@ connection_prepare_cb (GObject *object,
 	  afc->source_account = g_strdup (tp_proxy_get_object_path (cursor->data));
 	  afc->context = context;
 
+	  context->n_pending_accounts++;
+
 	  request = tp_asv_new (
 				TP_PROP_CHANNEL_CHANNEL_TYPE, G_TYPE_STRING,
 				TP_IFACE_CHANNEL_TYPE_CONTACT_LIST,
@@ -323,8 +361,9 @@ list_contacts (list_contacts_cb *callback,
 
   context = g_malloc (sizeof (ClientContext));
   context->n_readying_connections = 0;
+  context->n_pending_accounts = 0;
   context->callback = callback;
-  context->wanted_service = wanted_service;
+  context->wanted_service = g_strdup (wanted_service);
 
   manager = tp_account_manager_new (dbus);
   tp_proxy_prepare_async (TP_PROXY (manager), NULL,
@@ -333,6 +372,8 @@ list_contacts (list_contacts_cb *callback,
   g_object_unref (manager);
 
 }
+
+#ifdef LIST_CONTACTS_TEST
 
 void
 dumper (const gchar *source, const gchar *target)
@@ -355,3 +396,5 @@ main(int argc, char **argv)
 
   g_main_loop_run (loop);
 }
+
+#endif /* LIST_CONTACTS_TEST */
