@@ -3,6 +3,10 @@
 #include <gdk/gdkx.h>
 #include <string.h>
 
+#include "messagebox.h"
+
+#define _(x) (x)
+
 guint
 window_get_sharing (Window window)
 {
@@ -30,6 +34,133 @@ window_get_sharing (Window window)
     }
 
   return result;
+}
+
+typedef struct _FilterContext {
+  Atom result_atom;
+  gboolean ever_heard_back;
+  guint timeout_id;
+} FilterContext;
+
+static gboolean
+event_filter_timeout (gpointer user_data)
+{
+  FilterContext *context =
+    (FilterContext*) user_data;
+
+  if (context->ever_heard_back)
+    {
+      show_messagebox (_("Xzibit is not responding."));
+    }
+  else
+    {
+      show_messagebox (_("Xzibit does not seem to be installed. "
+			 "For information on how to install it, "
+			 "please see http://telepathy.freedesktop.org/wiki/Xzibit ."));
+    }
+
+  context->timeout_id = 0;
+  return FALSE; /* don't go round again */
+}
+
+static void
+start_event_filter_timeout (FilterContext *context,
+			    gboolean create_new_timeout)
+{
+  if (context->timeout_id)
+    {
+      /* Remove the old timeout. */
+
+      GSource *source =
+	g_main_context_find_source_by_id (NULL,
+					  context->timeout_id);
+
+      if (source)
+	{
+	  g_source_destroy (source);
+	}
+    }
+
+  if (create_new_timeout)
+    {
+      g_timeout_add (1000,
+		     event_filter_timeout,
+		     context);
+    }
+}
+
+static GdkFilterReturn
+event_filter (GdkXEvent *xevent,
+	      GdkEvent *event,
+	      gpointer user_data)
+{
+  FilterContext *context =
+    (FilterContext*) user_data;
+  XEvent *ev = (XEvent*) xevent;
+
+  if (ev->type = PropertyNotify)
+    {
+      XPropertyEvent *propev =
+	(XPropertyEvent*) xevent;
+
+      if (propev->atom == context->result_atom &&
+	  propev->state == PropertyNewValue)
+	{
+	  Atom actual_type;
+	  int actual_format;
+	  long n_items, bytes_after;
+	  unsigned char *prop_return;
+
+	  context->ever_heard_back = TRUE;
+
+	  XGetWindowProperty (gdk_x11_get_default_xdisplay (),
+			      propev->window,
+			      context->result_atom,
+			      0, 4, False,
+			      gdk_x11_get_xatom_by_name ("INTEGER"),
+			      &actual_type,
+			      &actual_format,
+			      &n_items,
+			      &bytes_after,
+			      &prop_return);
+
+	  if (prop_return)
+	    {
+	      g_print ("Result is set to %d\n",
+		       *((int*) prop_return));
+	      XFree (prop_return);
+	    }
+	}
+    }
+
+  return GDK_FILTER_CONTINUE;
+}
+
+static void
+monitor_window (Window window)
+{
+  GdkWindow *foreign =
+    gdk_window_foreign_new (window);
+  FilterContext *context;
+
+  if (!foreign)
+    {
+      g_warning ("Window %x was destroyed; can't monitor it",
+		 (int) window);
+      return;
+    }
+
+  context = g_malloc (sizeof (FilterContext));
+  context->result_atom =
+    gdk_x11_get_xatom_by_name("_XZIBIT_RESULT");
+  context->ever_heard_back = FALSE;
+  context->timeout_id = 0;
+
+  start_event_filter_timeout (context, TRUE);
+
+  gdk_window_add_filter (foreign,
+			 event_filter,
+			 context);
 }
 
 void
@@ -61,6 +192,8 @@ window_set_sharing (Window window,
 		   "unless sharing a window.");
 	}
     }
+
+  monitor_window (window);
 
   if (source)
     {
