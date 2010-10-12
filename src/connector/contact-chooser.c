@@ -100,7 +100,33 @@ handle_response (GtkDialog *dialogue,
 
   if (response_id == GTK_RESPONSE_ACCEPT)
     {
-      context->callback (123, "foo", "bar");
+      GtkTreePath *path;
+      GtkTreeIter iter;
+      GValue value = {0};
+
+      path =
+	gtk_tree_path_new_first ();
+
+      if (!gtk_tree_model_get_iter (GTK_TREE_MODEL (context->model),
+				    &iter,
+				    path))
+	{
+	  g_warning ("Could not get the path into the tree.");
+	  /* just bail */
+	  return;
+	}
+
+      gtk_tree_model_get_value (GTK_TREE_MODEL (context->model),
+				&iter,
+				0,
+				&value);
+
+      context->callback (123,
+			 g_value_get_string (&value),
+			 "bar");
+
+      g_value_unset (&value);
+      gtk_tree_path_free (path);
     }
 
   gtk_widget_destroy (GTK_WIDGET (dialogue));
