@@ -37,6 +37,30 @@ window_set_sharing (Window window,
 		    const char* source,
 		    const char* target)
 {
+  if (sharing>3)
+    {
+      g_error ("Attempted to set sharing to %d on %x, "
+	       "which is out of range.",
+	       sharing, (int) window);
+    }
+
+  if (sharing==1)
+    {
+      if (!source && !target)
+	{
+	  g_error ("Must set source and target when "
+		   "sharing a window.");
+	}
+    }
+  else
+    {
+      if (source || target)
+	{
+	  g_error ("Must not supply source or target "
+		   "unless sharing a window.");
+	}
+    }
+
   XChangeProperty (gdk_x11_get_default_xdisplay (),
 		   window,
 		   gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE"),
@@ -70,7 +94,8 @@ timeout (gpointer user_data)
     case 2:
       g_print ("Sharing the window.\n");
       window_set_sharing (id, 1,
-			  NULL, NULL);
+			  "source@example.com",
+			  "target@example.com");
       break;
 
     case 4:
