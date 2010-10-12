@@ -12,6 +12,26 @@ typedef struct _ContactContext {
   GHashTable *sources;
 } ContactContext;
 
+/**
+ * Frees a context, but only if its window is
+ * closed AND we've seen all the contacts.
+ *
+ * \param context  The context to free, maybe.
+ */
+static void
+context_maybe_free (ContactContext *context)
+{
+  if (!context)
+    return;
+
+  if (context->closed &&
+      context->seen_all_contacts)
+    {
+      g_hash_table_destroy (context->sources);
+      g_free (context);
+    }
+}
+
 static void
 add_contact (const gchar *source,
 	     const gchar *target,
@@ -26,6 +46,13 @@ add_contact (const gchar *source,
       gtk_label_set_text (GTK_LABEL (context->label),
 			  _("Please choose a contact to "
 			    "share this window with."));
+
+      /*
+       * It's possible that the window has been closed
+       * and that we should therefore free the memory.
+       */
+      context_maybe_free (context);
+
       return;
     }
 
@@ -35,8 +62,8 @@ add_contact (const gchar *source,
    */
 
   g_hash_table_insert (context->sources,
-		       (gpointer) target,
-		       (gpointer) source);
+		       (gpointer) g_strdup (target),
+		       (gpointer) g_strdup (source));
 
   gtk_list_store_append (context->model,
 			 &iter);
@@ -44,6 +71,21 @@ add_contact (const gchar *source,
 		      &iter,
 		      0, target,
 		      -1);
+}
+
+static gboolean
+mark_window_closed (GtkWidget *window,
+		    GdkEvent *event,
+		    gpointer user_data)
+{
+  ContactContext *context =
+    (ContactContext*) user_data;
+
+  context->closed = TRUE;
+
+  context_maybe_free (context);
+
+  return FALSE; /* keep propagating */
 }
 
 GtkWidget*
@@ -91,6 +133,11 @@ show_contact_chooser (int window_id,
 			   g_free,
 			   g_free);
 
+  g_signal_connect (window,
+		    "delete-event",
+		    G_CALLBACK (mark_window_closed),
+		    context);
+
   treeview =
     gtk_tree_view_new_with_model (GTK_TREE_MODEL (context->model));
 
@@ -129,7 +176,7 @@ dump_contact_chooser_result (int window,
 			     const char* source,
 			     const char* target)
 {
-  g_warning ("Result was: window %x, source %s, target %s",
+  g_print ("Result was: window %x, source %s, target %s\n",
 	     window, source, target);
 }
 
