@@ -77,6 +77,10 @@ select_a_window (gpointer user_data)
   result = Select_Window (GDK_WINDOW_XDISPLAY (window),
                           GDK_SCREEN_XNUMBER (gdk_screen_get_default()));
 
+  /* FIXME: This gives us the frame; we want the window */
+
+  /* FIXME: Should auto-cancel if result == GDK_WINDOW_XID (window)); */
+
   /* We're done, so un-toggle the button. */
   gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (context->button),
                                 FALSE);
