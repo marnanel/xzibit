@@ -122,8 +122,8 @@ handle_response (GtkDialog *dialogue,
 				&value);
 
       context->callback (123,
-			 g_value_get_string (&value),
-			 "bar");
+			 "foo",
+			 g_value_get_string (&value));
 
       g_value_unset (&value);
       gtk_tree_path_free (path);
@@ -154,7 +154,6 @@ show_contact_chooser (int window_id,
 				 NULL);
   GtkWidget *vbox =
     gtk_vbox_new (0, FALSE);
-  GtkWidget *treeview;
   GdkGeometry geometry;
   GtkCellRenderer *renderer;
   GtkTreeViewColumn *column;
@@ -185,7 +184,7 @@ show_contact_chooser (int window_id,
 			   g_free);
   context->callback = callback;
 
-  treeview =
+  context->treeview =
     gtk_tree_view_new_with_model (GTK_TREE_MODEL (context->model));
 
   renderer = gtk_cell_renderer_text_new ();
@@ -193,17 +192,17 @@ show_contact_chooser (int window_id,
 						     renderer,
 						     "text", 0,
 						     NULL);
-  gtk_tree_view_append_column (GTK_TREE_VIEW (treeview),
+  gtk_tree_view_append_column (GTK_TREE_VIEW (context->treeview),
 			       column);
 
   selection =
-    gtk_tree_view_get_selection (GTK_TREE_VIEW (treeview));
+    gtk_tree_view_get_selection (GTK_TREE_VIEW (context->treeview));
 
   gtk_container_add (GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(window))),
 		     vbox);
 
   gtk_box_pack_end (GTK_BOX (vbox),
-		    treeview,
+		    context->treeview,
 		    TRUE, TRUE, 0);
   gtk_box_pack_end (GTK_BOX (vbox),
 		    context->label,
