@@ -61,10 +61,9 @@ add_contact (const gchar *source,
       return;
     }
 
-  /*
-   * FIXME: If the label is already in the hash table,
-   * we should just bail.
-   */
+  if (g_hash_table_lookup (context->sources,
+			   target))
+    return; /* it's already known from another account */
 
   g_hash_table_insert (context->sources,
 		       (gpointer) g_strdup (target),
