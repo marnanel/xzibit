@@ -157,6 +157,8 @@ event_filter (GdkXEvent *xevent,
 	      gdk_window_remove_filter (context->gdk_window,
 					event_filter,
 					context);
+
+	      g_free (context);
 	    }
 	}
     }
