@@ -34,9 +34,9 @@ typedef struct _MainWindowContext
 gboolean
 main_window_closed (GtkWidget *window,
                     GdkEvent *event,
-                    gpointer user_data)
+                    gpointer context)
 {
-  g_free (user_data);
+  g_free (context);
   return FALSE;
 }
 
