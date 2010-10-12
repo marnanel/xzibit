@@ -22,6 +22,8 @@
  */
 
 #include "main-window.h"
+#include "select-window.h"
+#include <gdk/gdkx.h>
 
 #define _(x) (x)
 
@@ -29,6 +31,7 @@ typedef struct _MainWindowContext
 {
   main_window_cb *callback;
   gpointer user_data;
+  GtkWidget *main;
   GtkWidget *label;
   GtkWidget *button;
 } MainWindowContext;
@@ -60,6 +63,30 @@ update_label (MainWindowContext *context)
                       string);
 }
 
+gboolean
+select_a_window (gpointer user_data)
+{
+  MainWindowContext *context =
+    (MainWindowContext*) user_data;
+  GdkWindow *window;
+  Window result;
+
+  window = GTK_WIDGET (context->main)->window;
+
+  /* This blocks. */
+  result = Select_Window (GDK_WINDOW_XDISPLAY (window),
+                          GDK_SCREEN_XNUMBER (gdk_screen_get_default()));
+
+  /* We're done, so un-toggle the button. */
+  gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (context->button),
+                                FALSE);
+
+  context->callback ((long int) result,
+                     context->user_data);
+
+  return FALSE;
+}
+
 static void
 button_toggled (GtkToggleButton *button,
                 gpointer user_data)
@@ -71,9 +98,9 @@ button_toggled (GtkToggleButton *button,
 
   if (gtk_toggle_button_get_active (button))
     {
-      g_warning ("Firing off selector now. (FIXME)");
-      context->callback (177,
-                         context->user_data);
+      g_timeout_add (10,
+                     select_a_window,
+                     context);
     }
 }
 
@@ -94,6 +121,7 @@ show_main_window (main_window_cb callback,
   context->button = gtk_toggle_button_new_with_label (_("Share"));
 
   result = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  context->main = result;
 
   geometry.min_width = 400;
   geometry.min_height = 100;
