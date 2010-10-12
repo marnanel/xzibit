@@ -196,7 +196,7 @@ event_filter (GdkXEvent *xevent,
 
 	    default:
 	      message =
-		g_strdup_printf ("Xzibit sent a code I didn't understand: %d",
+		g_strdup_printf (_("Xzibit sent a code I didn't understand: %d"),
 				 result_value);
 	    }
 	  
