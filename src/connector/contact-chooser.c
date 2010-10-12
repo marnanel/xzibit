@@ -74,21 +74,6 @@ add_contact (const gchar *source,
 		      -1);
 }
 
-static gboolean
-mark_window_closed (GtkWidget *window,
-		    GdkEvent *event,
-		    gpointer user_data)
-{
-  ContactContext *context =
-    (ContactContext*) user_data;
-
-  context->closed = TRUE;
-
-  context_maybe_free (context);
-
-  return FALSE; /* keep propagating */
-}
-
 /**
  * Enables the OK button, if the treeview
  * has a row selected.
@@ -119,6 +104,11 @@ handle_response (GtkDialog *dialogue,
     }
 
   gtk_widget_destroy (GTK_WIDGET (dialogue));
+
+  context->closed = TRUE;
+
+  context_maybe_free (context);
+
 }
 
 GtkWidget*
@@ -168,11 +158,6 @@ show_contact_chooser (int window_id,
 			   g_free,
 			   g_free);
   context->callback = callback;
-
-  g_signal_connect (window,
-		    "delete-event",
-		    G_CALLBACK (mark_window_closed),
-		    context);
 
   treeview =
     gtk_tree_view_new_with_model (GTK_TREE_MODEL (context->model));
