@@ -29,9 +29,11 @@ typedef struct _MainWindowContext
 {
   main_window_cb *callback;
   gpointer user_data;
+  GtkWidget *label;
+  GtkWidget *button;
 } MainWindowContext;
 
-gboolean
+static gboolean
 main_window_closed (GtkWidget *window,
                     GdkEvent *event,
                     gpointer context)
@@ -40,18 +42,66 @@ main_window_closed (GtkWidget *window,
   return FALSE;
 }
 
+static void
+update_label (MainWindowContext *context)
+{
+  char *string;
+
+  if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (context->button)))
+    {
+      string = _("Please choose the window you'd like to share.");
+    }
+  else
+    {
+      string = _("Click the button to share a window.");
+    }
+
+  gtk_label_set_text (GTK_LABEL (context->label),
+                      string);
+}
+
+static void
+button_toggled (GtkToggleButton *button,
+                gpointer user_data)
+{
+  MainWindowContext *context =
+    (MainWindowContext*) user_data;
+
+  update_label (context);
+
+  if (gtk_toggle_button_get_active (button))
+    {
+      g_warning ("Firing off selector now. (FIXME)");
+      context->callback (177,
+                         context->user_data);
+    }
+}
+
 GtkWidget *
 show_main_window (main_window_cb callback,
                   gpointer user_data)
 {
   MainWindowContext *context;
   GtkWidget *result;
+  GtkWidget *vbox =
+    gtk_vbox_new (0, FALSE);
+  GdkGeometry geometry;
 
   context = g_malloc (sizeof (MainWindowContext));
   context->callback = callback;
   context->user_data = user_data;
+  context->label = gtk_label_new ("");
+  context->button = gtk_toggle_button_new_with_label (_("Share"));
 
   result = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+
+  geometry.min_width = 400;
+  geometry.min_height = 100;
+
+  gtk_window_set_geometry_hints (GTK_WINDOW (result),
+				 NULL,
+				 &geometry,
+				 GDK_HINT_MIN_SIZE);
 
   gtk_window_set_title (GTK_WINDOW (result),
                         _("Xzibit"));
@@ -60,6 +110,23 @@ show_main_window (main_window_cb callback,
 		    "delete-event",
 		    G_CALLBACK (main_window_closed),
 		    context);
+
+  g_signal_connect (context->button,
+		    "toggled",
+		    G_CALLBACK (button_toggled),
+		    context);
+
+  gtk_container_add (GTK_CONTAINER (result),
+		     vbox);
+
+  gtk_box_pack_end (GTK_BOX (vbox),
+		    context->button,
+		    TRUE, TRUE, 0);
+  gtk_box_pack_end (GTK_BOX (vbox),
+		    context->label,
+		    FALSE, FALSE, 0);
+
+  update_label (context);
 
   gtk_widget_show_all (result);
   return result;
