@@ -44,9 +44,13 @@ add_contact (const gchar *source,
   if (!source && !target)
     {
       context->seen_all_contacts = TRUE;
-      gtk_label_set_text (GTK_LABEL (context->label),
-			  _("Please choose a contact to "
-			    "share this window with."));
+
+      if (!context->closed)
+	{
+	  gtk_label_set_text (GTK_LABEL (context->label),
+			      _("Please choose a contact to "
+				"share this window with."));
+	}
 
       /*
        * It's possible that the window has been closed
