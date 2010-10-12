@@ -64,8 +64,8 @@ event_filter_timeout (gpointer user_data)
 }
 
 static void
-start_event_filter_timeout (FilterContext *context,
-			    gboolean create_new_timeout)
+start_stop_event_filter_timeout (FilterContext *context,
+				 gboolean create_new_timeout)
 {
   if (context->timeout_id)
     {
@@ -83,9 +83,10 @@ start_event_filter_timeout (FilterContext *context,
 
   if (create_new_timeout)
     {
-      g_timeout_add (1000,
-		     event_filter_timeout,
-		     context);
+      context->timeout_id =
+	g_timeout_add (1000,
+		       event_filter_timeout,
+		       context);
     }
 }
 
@@ -110,6 +111,9 @@ event_filter (GdkXEvent *xevent,
 	  int actual_format;
 	  long n_items, bytes_after;
 	  unsigned char *prop_return;
+	  int result_value = 0;
+	  char *message = NULL;
+	  gboolean go_round_again = FALSE;
 
 	  context->ever_heard_back = TRUE;
 
@@ -126,10 +130,26 @@ event_filter (GdkXEvent *xevent,
 
 	  if (prop_return)
 	    {
-	      g_print ("Result is set to %d\n",
-		       *((int*) prop_return));
+	      result_value = *((int*) prop_return);
 	      XFree (prop_return);
 	    }
+
+	  switch (result_value)
+	    {
+	    default:
+	      message =
+		g_strdup_printf ("Xzibit sent a code I didn't understand: %d",
+				 result_value);
+	    }
+	  
+	  if (message)
+	    {
+	      show_messagebox (message);
+	      g_free (message);
+	    }
+
+	  start_stop_event_filter_timeout (context,
+					   go_round_again);
 	}
     }
 
@@ -156,7 +176,7 @@ monitor_window (Window window)
   context->ever_heard_back = FALSE;
   context->timeout_id = 0;
 
-  start_event_filter_timeout (context, TRUE);
+  start_stop_event_filter_timeout (context, TRUE);
 
   gdk_window_add_filter (foreign,
 			 event_filter,
