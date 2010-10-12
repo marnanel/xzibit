@@ -20,8 +20,7 @@ _XZIBIT_RESULT
   Set by the WM on a window.
 
   100 = change to sharing state 0 acknowledged
-  101 = change to sharing state 1 acknowledged
-  102 = change to sharing state 2 acknowledged and successful
+  101 = change to sharing state 1 acknowledged and successful
   103 = change to sharing state 3 acknowledged
   200 = switching to state 2; connecting
   301 = could not switch to state 2: source address is not
@@ -30,4 +29,6 @@ _XZIBIT_RESULT
         an account on the roster of the source account
   312 = could not switch to state 2: target address does
         not have the capabilities required
+  322 = could not switch to state 2: target address
+        rejected the connection
 

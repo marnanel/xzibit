@@ -137,6 +137,63 @@ event_filter (GdkXEvent *xevent,
 
 	  switch (result_value)
 	    {
+	    case 100:
+	      message =
+		g_strdup_printf (_("Window successfully unshared."));
+	      break;
+
+	    case 101:
+	      message =
+		g_strdup_printf (_("Window successfully shared."));
+	      break;
+
+	    case 103:
+	      /*
+	       * Window is being made unshareable; there's no
+	       * need to tell the user about it.  We did need
+	       * to monitor, though, because it's the first thing
+	       * we do, and if xzibit isn't installed we'll know
+	       * about it very quickly.
+	       */
+	      break;
+
+	    case 200:
+	      message =
+		g_strdup_printf (_("Connecting; please wait."));
+	      /*
+	       * FIXME: Probably should pop up something with
+	       * one of those non-percentage progress bars here.
+	       */
+	      break;
+
+	    case 301:
+	      message =
+		g_strdup_printf (_("Can't share window: you are "
+				   "not logged in from the correct "
+				   "account."));
+	      break;
+
+	    case 302:
+	      message =
+		g_strdup_printf (_("Can't share window: the person "
+				   "you selected is not one of "
+				   "your contacts."));
+	      break;
+
+	    case 312:
+	      message =
+		g_strdup_printf (_("Can't share window: the contact "
+				   "you selected is not running "
+				   "xzibit."));
+	      break;
+
+	    case 322:
+	      message =
+		g_strdup_printf (_("Can't share window: the contact "
+				   "you selected has rejected the "
+				   "connection."));
+	      break;
+
 	    default:
 	      message =
 		g_strdup_printf ("Xzibit sent a code I didn't understand: %d",
@@ -147,6 +204,11 @@ event_filter (GdkXEvent *xevent,
 	    {
 	      show_messagebox (message);
 	      g_free (message);
+	    }
+
+	  if (result_value/100 == 2)
+	    {
+	      go_round_again = TRUE;
 	    }
 
 	  start_stop_event_filter_timeout (context,
