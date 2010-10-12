@@ -10,6 +10,7 @@ typedef struct _ContactContext {
   GtkWidget *treeview;
   GtkWidget *label;
   GHashTable *sources;
+  contact_chooser_cb *callback;
 } ContactContext;
 
 /**
@@ -104,6 +105,22 @@ enable_ok_button (GtkTreeSelection *selection,
 			    count != 0);
 }
 
+static void
+handle_response (GtkDialog *dialogue,
+		 gint response_id,
+		 gpointer user_data)
+{
+  ContactContext *context =
+    (ContactContext*) user_data;
+
+  if (response_id == GTK_RESPONSE_ACCEPT)
+    {
+      context->callback (123, "foo", "bar");
+    }
+
+  gtk_widget_destroy (GTK_WIDGET (dialogue));
+}
+
 GtkWidget*
 show_contact_chooser (int window_id,
 		      contact_chooser_cb callback)
@@ -150,6 +167,7 @@ show_contact_chooser (int window_id,
 			   g_str_equal,
 			   g_free,
 			   g_free);
+  context->callback = callback;
 
   g_signal_connect (window,
 		    "delete-event",
@@ -189,11 +207,25 @@ show_contact_chooser (int window_id,
   gtk_widget_set_sensitive (ok_button,
 			    FALSE);
 
-  g_signal_connect_after (selection,
-			  "changed",
-			  G_CALLBACK (enable_ok_button),
-			  ok_button);
-  
+  g_signal_connect (selection,
+		    "changed",
+		    G_CALLBACK (enable_ok_button),
+		    ok_button);
+
+
+  /*
+   * Set up a handler for dealing with the result
+   */
+
+  g_signal_connect (GTK_DIALOG (window),
+		    "response",
+		    G_CALLBACK (handle_response),
+		    context);
+
+  /*
+   * Now show it all
+   */
+
   gtk_widget_show_all (GTK_WIDGET (window));
 
   list_contacts (add_contact,
