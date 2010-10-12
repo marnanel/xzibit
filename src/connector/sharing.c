@@ -1,6 +1,7 @@
 #include "sharing.h"
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
+#include <string.h>
 
 guint
 window_get_sharing (Window window)
@@ -59,6 +60,32 @@ window_set_sharing (Window window,
 	  g_error ("Must not supply source or target "
 		   "unless sharing a window.");
 	}
+    }
+
+  if (source)
+    {
+      XChangeProperty (gdk_x11_get_default_xdisplay (),
+		       window,
+		       gdk_x11_get_xatom_by_name("_XZIBIT_SOURCE"),
+		       gdk_x11_get_xatom_by_name("UTF8_STRING"),
+		       8,
+		       PropModeReplace,
+		       (const unsigned char*) source,
+		       strlen(source));
+
+    }
+
+  if (target)
+    {
+      XChangeProperty (gdk_x11_get_default_xdisplay (),
+		       window,
+		       gdk_x11_get_xatom_by_name("_XZIBIT_TARGET"),
+		       gdk_x11_get_xatom_by_name("UTF8_STRING"),
+		       8,
+		       PropModeReplace,
+		       (const unsigned char*) target,
+		       strlen(source));
+
     }
 
   XChangeProperty (gdk_x11_get_default_xdisplay (),
