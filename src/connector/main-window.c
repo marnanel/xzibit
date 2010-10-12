@@ -63,6 +63,50 @@ update_label (MainWindowContext *context)
                       string);
 }
 
+Window
+unframe_window (Display *dpy,
+                Window window)
+{
+  Window root, parent, *kids, result;
+  int n_kids;
+
+  if (XQueryTree (dpy, window,
+                  &root,
+                  &parent,
+                  &kids,
+                  &n_kids)==0)
+  {
+    /*
+     * Can't examine this window; maybe it
+     * doesn't exist (or went away).
+     */
+    return None;
+  }
+
+if (window==root)
+  {
+    /* Can't share the root window! */
+    result = None;
+  }
+ else if (parent==root && n_kids==1)
+  {
+    /* Must be the frame */
+    result = kids[0];
+  }
+ else
+   {
+     /* Just give them back what they gave us */
+     result = window;
+   }
+
+ if (kids)
+   {
+     XFree (kids);
+   }
+
+ return result;
+}
+
 gboolean
 select_a_window (gpointer user_data)
 {
@@ -77,7 +121,8 @@ select_a_window (gpointer user_data)
   result = Select_Window (GDK_WINDOW_XDISPLAY (window),
                           GDK_SCREEN_XNUMBER (gdk_screen_get_default()));
 
-  /* FIXME: This gives us the frame; we want the window */
+  result = unframe_window (GDK_WINDOW_XDISPLAY (window),
+                           result);
 
   /* FIXME: Should auto-cancel if result == GDK_WINDOW_XID (window)); */
 
