@@ -133,7 +133,7 @@ select_a_window (gpointer user_data)
   gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (context->button),
                                 FALSE);
 
-  if (result==0 ||
+  if (result == None ||
       result == GDK_WINDOW_XID (window))
     {
       /* cancel */
