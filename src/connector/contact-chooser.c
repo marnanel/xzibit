@@ -88,6 +88,22 @@ mark_window_closed (GtkWidget *window,
   return FALSE; /* keep propagating */
 }
 
+/**
+ * Enables the OK button, if the treeview
+ * has a row selected.
+ */
+static void
+enable_ok_button (GtkTreeSelection *selection,
+		  gpointer user_data)
+{
+  GtkWidget *ok_button = (GtkWidget*) user_data;
+  guint count =
+    gtk_tree_selection_count_selected_rows (selection);
+
+  gtk_widget_set_sensitive (ok_button,
+			    count != 0);
+}
+
 GtkWidget*
 show_contact_chooser (int window_id,
 		      contact_chooser_cb callback)
@@ -109,6 +125,8 @@ show_contact_chooser (int window_id,
   GdkGeometry geometry;
   GtkCellRenderer *renderer;
   GtkTreeViewColumn *column;
+  GtkWidget *ok_button;
+  GtkTreeSelection *selection;
 
   gtk_dialog_set_default_response (GTK_DIALOG (window),
 				   GTK_RESPONSE_ACCEPT);
@@ -149,6 +167,9 @@ show_contact_chooser (int window_id,
   gtk_tree_view_append_column (GTK_TREE_VIEW (treeview),
 			       column);
 
+  selection =
+    gtk_tree_view_get_selection (GTK_TREE_VIEW (treeview));
+
   gtk_container_add (GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(window))),
 		     vbox);
 
@@ -158,6 +179,20 @@ show_contact_chooser (int window_id,
   gtk_box_pack_end (GTK_BOX (vbox),
 		    context->label,
 		    FALSE, FALSE, 0);
+
+  /* 
+   * Disable the OK button until they choose
+   * a line from the list.
+   */
+  ok_button = gtk_dialog_get_widget_for_response (GTK_DIALOG (window),
+						  GTK_RESPONSE_ACCEPT);
+  gtk_widget_set_sensitive (ok_button,
+			    FALSE);
+
+  g_signal_connect_after (selection,
+			  "changed",
+			  G_CALLBACK (enable_ok_button),
+			  ok_button);
   
   gtk_widget_show_all (GTK_WIDGET (window));
 
