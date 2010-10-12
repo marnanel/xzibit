@@ -40,6 +40,7 @@ typedef struct _FilterContext {
   Atom result_atom;
   gboolean ever_heard_back;
   guint timeout_id;
+  GdkWindow *gdk_window;
 } FilterContext;
 
 static gboolean
@@ -150,6 +151,13 @@ event_filter (GdkXEvent *xevent,
 
 	  start_stop_event_filter_timeout (context,
 					   go_round_again);
+
+	  if (!go_round_again)
+	    {
+	      gdk_window_remove_filter (context->gdk_window,
+					event_filter,
+					context);
+	    }
 	}
     }
 
@@ -175,6 +183,7 @@ monitor_window (Window window)
     gdk_x11_get_xatom_by_name("_XZIBIT_RESULT");
   context->ever_heard_back = FALSE;
   context->timeout_id = 0;
+  context->gdk_window = foreign;
 
   start_stop_event_filter_timeout (context, TRUE);
 
