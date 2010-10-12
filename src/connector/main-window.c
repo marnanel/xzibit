@@ -124,14 +124,20 @@ select_a_window (gpointer user_data)
   result = unframe_window (GDK_WINDOW_XDISPLAY (window),
                            result);
 
-  /* FIXME: Should auto-cancel if result == GDK_WINDOW_XID (window)); */
-
   /* We're done, so un-toggle the button. */
   gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (context->button),
                                 FALSE);
 
-  context->callback ((long int) result,
-                     context->user_data);
+  if (result==0 ||
+      result == GDK_WINDOW_XID (window))
+    {
+      /* cancel */
+    }
+  else
+    {
+      context->callback ((long int) result,
+                         context->user_data);
+    }
 
   return FALSE;
 }
