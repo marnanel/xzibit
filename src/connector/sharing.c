@@ -5,8 +5,30 @@
 guint
 window_get_sharing (Window window)
 {
-  /* stub */
-  return 0;
+  Atom actual_type;
+  int actual_format;
+  long n_items, bytes_after;
+  unsigned char *prop_return;
+  guint result = 0;
+
+  XGetWindowProperty (gdk_x11_get_default_xdisplay (),
+		      window,
+		      gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE"),
+		      0, 4, False,
+		      gdk_x11_get_xatom_by_name ("CARDINAL"),
+		      &actual_type,
+		      &actual_format,
+		      &n_items,
+		      &bytes_after,
+		      &prop_return);
+
+  if (prop_return)
+    {
+      result = *((int*) prop_return);
+      XFree (prop_return);
+    }
+
+  return result;
 }
 
 void
@@ -15,16 +37,23 @@ window_set_sharing (Window window,
 		    const char* source,
 		    const char* target)
 {
-  /* stub */
+  XChangeProperty (gdk_x11_get_default_xdisplay (),
+		   window,
+		   gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE"),
+		   gdk_x11_get_xatom_by_name ("CARDINAL"),
+		   32,
+		   PropModeReplace,
+		   (const unsigned char*) &sharing,
+		   1);
 }
 
 #ifdef SHARING_TEST
 
-int stage = 0;
-
 static gboolean
 timeout (gpointer user_data)
 {
+  static int stage = 0;
+
   GtkWidget *window =
     (GtkWidget*) user_data;
   Window id =
@@ -35,7 +64,7 @@ timeout (gpointer user_data)
     case 1:
     case 3:
       g_print ("State of window %x is %d\n",
-	       id, window_get_sharing (id));
+	       (int) id, window_get_sharing (id));
       break;
 
     case 2:
