@@ -55,7 +55,7 @@ show_contact_chooser (int window_id,
   GtkWidget *window =
     gtk_dialog_new_with_buttons ("Xzibit",
 				 NULL,
-				 0,
+				 GTK_DIALOG_DESTROY_WITH_PARENT|GTK_DIALOG_MODAL,
 				 GTK_STOCK_OK,
 				 GTK_RESPONSE_ACCEPT,
 				 GTK_STOCK_CANCEL,
@@ -67,6 +67,9 @@ show_contact_chooser (int window_id,
   GdkGeometry geometry;
   GtkCellRenderer *renderer;
   GtkTreeViewColumn *column;
+
+  gtk_dialog_set_default_response (GTK_DIALOG (window),
+				   GTK_RESPONSE_ACCEPT);
 
   geometry.min_width = 300;
   geometry.min_height = 300;
