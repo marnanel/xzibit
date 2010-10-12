@@ -102,10 +102,21 @@ handle_response (GtkDialog *dialogue,
     {
       GtkTreePath *path;
       GtkTreeIter iter;
+      GtkTreeSelection *selection =
+	gtk_tree_view_get_selection (GTK_TREE_VIEW (context->treeview));
+      GList *paths =
+	gtk_tree_selection_get_selected_rows (selection,
+					      NULL);
       GValue value = {0};
 
-      path =
-	gtk_tree_path_new_first ();
+      if (paths == NULL)
+	{
+	  /* shouldn't be possible to get here in this case */
+	  g_warning ("No paths were selected");
+	  return;
+	}
+
+      path = (GtkTreePath*) paths->data;
 
       if (!gtk_tree_model_get_iter (GTK_TREE_MODEL (context->model),
 				    &iter,
@@ -113,6 +124,8 @@ handle_response (GtkDialog *dialogue,
 	{
 	  g_warning ("Could not get the path into the tree.");
 	  /* just bail */
+	  g_list_foreach (paths, (GFunc) gtk_tree_path_free, NULL);
+	  g_list_free (paths);
 	  return;
 	}
 
@@ -126,7 +139,8 @@ handle_response (GtkDialog *dialogue,
 			 g_value_get_string (&value));
 
       g_value_unset (&value);
-      gtk_tree_path_free (path);
+      g_list_foreach (paths, (GFunc) gtk_tree_path_free, NULL);
+      g_list_free (paths);
     }
 
   gtk_widget_destroy (GTK_WIDGET (dialogue));
