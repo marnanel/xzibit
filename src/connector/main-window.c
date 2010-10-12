@@ -48,19 +48,24 @@ main_window_closed (GtkWidget *window,
 static void
 update_label (MainWindowContext *context)
 {
-  char *string;
+  char *label_string, *button_string;
 
   if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (context->button)))
     {
-      string = _("Please choose the window you'd like to share.");
+      label_string = _("Please choose the window you'd like to share.");
+      button_string = _("Cancel");
     }
   else
     {
-      string = _("Click the button to share a window.");
+      label_string = _("Click the button to share a window.");
+      button_string = _("Share");
     }
 
   gtk_label_set_text (GTK_LABEL (context->label),
-                      string);
+                      label_string);
+
+  gtk_button_set_label (GTK_BUTTON (context->button),
+                        button_string);
 }
 
 Window
@@ -173,7 +178,7 @@ show_main_window (main_window_cb callback,
   context->callback = callback;
   context->user_data = user_data;
   context->label = gtk_label_new ("");
-  context->button = gtk_toggle_button_new_with_label (_("Share"));
+  context->button = gtk_toggle_button_new_with_label ("");
 
   result = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   context->main = result;
