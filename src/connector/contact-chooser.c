@@ -158,7 +158,7 @@ show_contact_chooser (int window_id,
   ContactContext *context =
     g_malloc (sizeof (ContactContext));
   GtkWidget *window =
-    gtk_dialog_new_with_buttons ("Xzibit",
+    gtk_dialog_new_with_buttons (_("Xzibit"),
 				 NULL,
 				 GTK_DIALOG_DESTROY_WITH_PARENT|GTK_DIALOG_MODAL,
 				 GTK_STOCK_OK,
@@ -202,7 +202,7 @@ show_contact_chooser (int window_id,
     gtk_tree_view_new_with_model (GTK_TREE_MODEL (context->model));
 
   renderer = gtk_cell_renderer_text_new ();
-  column = gtk_tree_view_column_new_with_attributes ("Contact",
+  column = gtk_tree_view_column_new_with_attributes (_("Contact"),
 						     renderer,
 						     "text", 0,
 						     NULL);
