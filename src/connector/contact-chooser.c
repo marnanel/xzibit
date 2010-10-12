@@ -135,7 +135,8 @@ handle_response (GtkDialog *dialogue,
 				&value);
 
       context->callback (123,
-			 "foo",
+			 (char*) g_hash_table_lookup (context->sources,
+						      g_value_get_string (&value)),
 			 g_value_get_string (&value));
 
       g_value_unset (&value);
