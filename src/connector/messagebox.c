@@ -12,6 +12,7 @@ typedef struct _UnshareContext {
 struct _MessageBox {
   int ref_count;
   GtkDialog *box;
+  GtkWidget *label;
 };
 
 static void
@@ -115,15 +116,19 @@ messagebox_show (MessageBox *box,
 		 int please_wait)
 {
   GtkDialog *dialogue = NULL;
+  GtkWidget *label = NULL;
 
   if (box)
     {
       box->ref_count++;
       dialogue = box->box;
+      label = box->label;
     }
 
   if (dialogue == NULL)
     {
+      GtkWidget *vbox;
+
       dialogue = 
 	GTK_DIALOG (gtk_dialog_new_with_buttons (_("Xzibit"),
 						 NULL,
@@ -137,12 +142,26 @@ messagebox_show (MessageBox *box,
 			G_CALLBACK (messagebox_response),
 			box);
 
+      vbox =
+	gtk_vbox_new (0, FALSE);
+
+      gtk_container_add (GTK_CONTAINER(gtk_dialog_get_content_area(dialogue)),
+			 vbox);
+
+      label =
+	gtk_label_new (message);
+
+      gtk_box_pack_end (GTK_BOX (vbox),
+			label,
+			TRUE, TRUE, 0);
+      
       gtk_widget_show_all (GTK_WIDGET (dialogue));
     }
 
-  if (box && box->box!=NULL)
+  if (box)
     {
       box->box = dialogue;
+      box->label = label;
     }
 }
 
