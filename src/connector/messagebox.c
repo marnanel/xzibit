@@ -81,11 +81,15 @@ int
 main(int argc, char **argv)
 {
   gtk_init (&argc, &argv);
-  
+
+#if 0  
   show_unshare_messagebox ("That window is already shared. "
 			   "Would you like to unshare it?",
 			   unshare_callback,
 			   "that window");
+#endif
+
+  
 
   gtk_main ();
 }
