@@ -85,6 +85,17 @@ messagebox_new (void)
   return result;
 }
 
+void
+messagebox_unref (MessageBox *box)
+{
+  if (--box->ref_count <= 0)
+    {
+      g_warning ("Destroying messagebox %p",
+		 box);
+      g_free (box);
+    }
+}
+
 #ifdef MESSAGEBOX_TEST
 
 static void
@@ -97,6 +108,8 @@ unshare_callback (gpointer user_data)
 int
 main(int argc, char **argv)
 {
+  MessageBox *box;
+
   gtk_init (&argc, &argv);
 
 #if 0  
@@ -104,6 +117,12 @@ main(int argc, char **argv)
 			   "Would you like to unshare it?",
 			   unshare_callback,
 			   "that window");
+#else
+
+  box = messagebox_new ();
+
+  messagebox_unref (box);
+
 #endif
 
   gtk_main ();
