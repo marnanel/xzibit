@@ -119,7 +119,14 @@ messagebox_show (MessageBox *box,
 
   if (box)
     {
-      box->ref_count++;
+      if (box->box==NULL)
+	{
+	  /*
+	   * Increment the refcount because we're
+	   * about to display a dialogue.
+	   */
+	  box->ref_count++;
+	}
       dialogue = box->box;
       label = box->label;
     }
@@ -156,6 +163,11 @@ messagebox_show (MessageBox *box,
       
       gtk_widget_show_all (GTK_WIDGET (dialogue));
     }
+  else
+    {
+      gtk_label_set_text (GTK_LABEL (box->label),
+			  message);
+    }
 
   if (box)
     {
@@ -171,6 +183,17 @@ unshare_callback (gpointer user_data)
 {
   g_print ("Here we would unshare %s.\n",
 	   (char*) user_data);
+}
+
+static gboolean
+messagebox_change (gpointer user_data)
+{
+  MessageBox *box = (MessageBox*) user_data;
+
+  messagebox_show (box,
+		   "This is a new message.");
+
+  return FALSE;
 }
 
 int
@@ -193,6 +216,10 @@ main(int argc, char **argv)
 		   "Hello world.");
 
   messagebox_unref (box);
+
+  g_timeout_add (1000,
+		 messagebox_change,
+		 box);
 
 #endif
 
