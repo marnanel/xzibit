@@ -55,6 +55,11 @@ show_unshare_messagebox(const char *message,
   UnshareContext *context =
     g_malloc (sizeof (UnshareContext));
 
+  gtk_label_set_line_wrap (GTK_LABEL (label),
+			   TRUE);
+  gtk_label_set_justify (GTK_LABEL (label),
+			 GTK_JUSTIFY_LEFT);
+
   context->callback = callback;
   context->user_data = user_data;
 
@@ -220,7 +225,7 @@ main(int argc, char **argv)
 
   gtk_init (&argc, &argv);
 
-#if 0  
+#if 1
   show_unshare_messagebox ("That window is already shared. "
 			   "Would you like to unshare it?",
 			   unshare_callback,
