@@ -28,13 +28,9 @@ MessageBox *messagebox_new(void);
  * \param box  The MessageBox object to keep
  *             track of this box; may be NULL.
  * \param message  The message to display.
- * \param please_wait  If nonzero, there will
- *                     be a "please wait" bar
- *                     in the dialogue.
  */
 void messagebox_show (MessageBox *box,
-		      const char *message,
-		      int please_wait);
+		      const char *message);
 
 /**
  * Removes a reference to a MessageBox.  This

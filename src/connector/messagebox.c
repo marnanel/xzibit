@@ -112,8 +112,7 @@ messagebox_response (GtkDialog *dialogue,
 
 void
 messagebox_show (MessageBox *box,
-		 const char *message,
-		 int please_wait)
+		 const char *message)
 {
   GtkDialog *dialogue = NULL;
   GtkWidget *label = NULL;
@@ -191,8 +190,7 @@ main(int argc, char **argv)
   box = messagebox_new ();
 
   messagebox_show (box,
-		   "Hello world.",
-		   1);
+		   "Hello world.");
 
   messagebox_unref (box);
 
