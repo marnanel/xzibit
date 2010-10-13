@@ -141,7 +141,7 @@ messagebox_show (MessageBox *box,
 						 NULL));
 
       geometry.min_width = geometry.max_width = 400;
-      geometry.min_height = geometry.max_height = 100;
+      geometry.min_height = geometry.max_height = 150;
 
       gtk_window_set_geometry_hints (GTK_WINDOW (dialogue),
 				     NULL,
@@ -162,6 +162,11 @@ messagebox_show (MessageBox *box,
 
       label =
 	gtk_label_new (message);
+
+      gtk_label_set_line_wrap (GTK_LABEL (label),
+			       TRUE);
+      gtk_label_set_justify (GTK_LABEL (label),
+			     GTK_JUSTIFY_LEFT);
 
       gtk_box_pack_end (GTK_BOX (vbox),
 			label,
