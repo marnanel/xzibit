@@ -89,10 +89,11 @@ messagebox_new (void)
 void
 messagebox_unref (MessageBox *box)
 {
+  if (box==NULL)
+    return;
+
   if (--box->ref_count <= 0)
     {
-      g_warning ("Destroying messagebox %p",
-		 box);
       g_free (box);
     }
 }
