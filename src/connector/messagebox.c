@@ -9,6 +9,11 @@ typedef struct _UnshareContext {
   void *user_data;
 } UnshareContext;
 
+struct _MessageBox {
+  int ref_count;
+  GtkDialog *box;
+};
+
 static void
 handle_response (GtkDialog *dialogue,
 		 gint response_id,
@@ -68,6 +73,18 @@ show_messagebox(const char* message)
 	     message);
 }
 
+MessageBox*
+messagebox_new (void)
+{
+  MessageBox *result =
+    g_malloc (sizeof (MessageBox));
+
+  result->ref_count = 1;
+  result->box = NULL;
+
+  return result;
+}
+
 #ifdef MESSAGEBOX_TEST
 
 static void
@@ -88,8 +105,6 @@ main(int argc, char **argv)
 			   unshare_callback,
 			   "that window");
 #endif
-
-  
 
   gtk_main ();
 }

@@ -3,7 +3,7 @@
 
 typedef void messagebox_unshare_cb(void *);
 
-typedef MessageBox;
+typedef struct _MessageBox MessageBox;
 
 void show_unshare_messagebox(const char *message,
 			     messagebox_unshare_cb *callback,
