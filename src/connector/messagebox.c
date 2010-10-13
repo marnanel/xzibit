@@ -69,13 +69,6 @@ show_unshare_messagebox(const char *message,
   gtk_widget_show_all (window);
 }
 
-void
-show_messagebox(const char* message)
-{
-  g_warning ("This would be a message box: %s",
-	     message);
-}
-
 MessageBox*
 messagebox_new (void)
 {

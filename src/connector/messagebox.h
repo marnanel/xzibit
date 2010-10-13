@@ -10,13 +10,6 @@ void show_unshare_messagebox(const char *message,
 			     void *user_data);
 
 /**
- * Simple interface to messagebox_show.
- *
- * \param message  The message to display.
- */
-void show_messagebox(const char* message);
-
-/**
  * Creates a MessageBox object, in case you want
  * to keep a handle on a messagebox.
  */

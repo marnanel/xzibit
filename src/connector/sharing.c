@@ -51,11 +51,11 @@ event_filter_timeout (gpointer user_data)
 
   if (context->ever_heard_back)
     {
-      show_messagebox (_("Xzibit is not responding."));
+      messagebox_show (NULL, _("Xzibit is not responding."));
     }
   else
     {
-      show_messagebox (_("Xzibit does not seem to be installed. "
+      messagebox_show (NULL, _("Xzibit does not seem to be installed. "
 			 "For information on how to install it, "
 			 "please see http://telepathy.freedesktop.org/wiki/Xzibit ."));
     }
@@ -202,7 +202,7 @@ event_filter (GdkXEvent *xevent,
 	  
 	  if (message)
 	    {
-	      show_messagebox (message);
+	      messagebox_show (NULL, message);
 	      g_free (message);
 	    }
 
