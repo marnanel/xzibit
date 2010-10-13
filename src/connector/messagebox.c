@@ -1,5 +1,7 @@
 #include "messagebox.h"
+#include "sharing.h"
 
+#include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 
 #define _(x) (x)
@@ -173,6 +175,12 @@ messagebox_show (MessageBox *box,
 			TRUE, TRUE, 0);
       
       gtk_widget_show_all (GTK_WIDGET (dialogue));
+
+      window_set_sharing (GDK_WINDOW_XID (GTK_WIDGET (dialogue)->window),
+	SHARING_UNSHAREABLE,
+	NULL, NULL,
+	FALSE);
+
     }
   else
     {
