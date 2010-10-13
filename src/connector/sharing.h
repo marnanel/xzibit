@@ -4,6 +4,13 @@
 #include <glib.h>
 #include <X11/Xlib.h>
 
+typedef enum _SharingStatus {
+  SHARING_NONE = 0,
+  SHARING_SENT = 1,
+  SHARING_RECEIVED = 2,
+  SHARING_UNSHAREABLE = 3
+} SharingStatus;
+
 /**
  * Finds whether a window on the current display
  * is shared.
