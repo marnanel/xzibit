@@ -15,7 +15,7 @@ struct _MessageBox {
 };
 
 static void
-handle_response (GtkDialog *dialogue,
+unshare_response (GtkDialog *dialogue,
 		 gint response_id,
 		 gpointer user_data)
 {
@@ -60,7 +60,7 @@ show_unshare_messagebox(const char *message,
 
   g_signal_connect (GTK_DIALOG (window),
 		    "response",
-		    G_CALLBACK (handle_response),
+		    G_CALLBACK (unshare_response),
 		    context);
 
   gtk_widget_show_all (window);
@@ -96,6 +96,56 @@ messagebox_unref (MessageBox *box)
     }
 }
 
+static void
+messagebox_response (GtkDialog *dialogue,
+		     gint response_id,
+		     gpointer user_data)
+{
+  MessageBox *box =
+    (MessageBox*) user_data;
+
+  messagebox_unref (box);
+
+  gtk_widget_destroy (GTK_WIDGET (dialogue));
+}
+
+void
+messagebox_show (MessageBox *box,
+		 const char *message,
+		 int please_wait)
+{
+  GtkDialog *dialogue = NULL;
+
+  if (box)
+    {
+      box->ref_count++;
+      dialogue = box->box;
+    }
+
+  if (dialogue == NULL)
+    {
+      dialogue = 
+	GTK_DIALOG (gtk_dialog_new_with_buttons (_("Xzibit"),
+						 NULL,
+						 GTK_DIALOG_DESTROY_WITH_PARENT|GTK_DIALOG_MODAL,
+						 GTK_STOCK_OK,
+						 GTK_RESPONSE_ACCEPT,
+						 NULL));
+
+      g_signal_connect (dialogue,
+			"response",
+			G_CALLBACK (messagebox_response),
+			box);
+
+      gtk_widget_show_all (GTK_WIDGET (dialogue));
+    }
+
+  if (box && box->box!=NULL)
+    {
+      box->box = dialogue;
+    }
+}
+
 #ifdef MESSAGEBOX_TEST
 
 static void
@@ -120,6 +170,10 @@ main(int argc, char **argv)
 #else
 
   box = messagebox_new ();
+
+  messagebox_show (box,
+		   "Hello world.",
+		   1);
 
   messagebox_unref (box);
 
