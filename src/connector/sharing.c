@@ -260,7 +260,8 @@ void
 window_set_sharing (Window window,
 		    guint sharing,
 		    const char* source,
-		    const char* target)
+		    const char* target,
+		    gboolean follow_up)
 {
   if (sharing>3)
     {
@@ -286,7 +287,10 @@ window_set_sharing (Window window,
 	}
     }
 
-  monitor_window (window);
+  if (follow_up)
+    {
+      monitor_window (window);
+    }
 
   if (source)
     {
@@ -348,7 +352,8 @@ timeout (gpointer user_data)
       g_print ("Sharing the window.\n");
       window_set_sharing (id, 1,
 			  "source@example.com",
-			  "target@example.com");
+			  "target@example.com",
+			  1);
       break;
 
     case 4:
