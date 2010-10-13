@@ -134,6 +134,7 @@ messagebox_show (MessageBox *box,
   if (dialogue == NULL)
     {
       GtkWidget *vbox;
+      GdkGeometry geometry;
 
       dialogue = 
 	GTK_DIALOG (gtk_dialog_new_with_buttons (_("Xzibit"),
@@ -142,6 +143,15 @@ messagebox_show (MessageBox *box,
 						 GTK_STOCK_OK,
 						 GTK_RESPONSE_ACCEPT,
 						 NULL));
+
+      geometry.min_width = geometry.max_width = 400;
+      geometry.min_height = geometry.max_height = 100;
+
+      gtk_window_set_geometry_hints (GTK_WINDOW (dialogue),
+				     NULL,
+				     &geometry,
+				     GDK_HINT_MIN_SIZE|
+				     GDK_HINT_MAX_SIZE);
 
       g_signal_connect (dialogue,
 			"response",
