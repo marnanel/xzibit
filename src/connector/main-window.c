@@ -23,6 +23,7 @@
 
 #include "main-window.h"
 #include "select-window.h"
+#include "sharing.h"
 #include <gdk/gdkx.h>
 
 #define _(x) (x)
@@ -217,6 +218,12 @@ show_main_window (main_window_cb callback,
   update_label (context);
 
   gtk_widget_show_all (result);
+
+  window_set_sharing (GDK_WINDOW_XID (GTK_WIDGET (result)->window),
+                      SHARING_UNSHAREABLE,
+                      NULL, NULL,
+                      TRUE);
+
   return result;
 }
 
