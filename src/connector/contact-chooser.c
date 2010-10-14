@@ -23,6 +23,8 @@
 
 #include "contact-chooser.h"
 #include "list-contacts.h"
+#include "sharing.h"
+#include <gdk/gdkx.h>
 
 #define _(x) (x)
 
@@ -278,6 +280,11 @@ show_contact_chooser (int window_id,
    */
 
   gtk_widget_show_all (GTK_WIDGET (window));
+
+  window_set_sharing (GDK_WINDOW_XID (GTK_WIDGET (window)->window),
+                      SHARING_UNSHAREABLE,
+                      NULL, NULL,
+                      TRUE);
 
   list_contacts (add_contact,
 		 "x-xzibit",
