@@ -41,6 +41,7 @@ typedef struct _FilterContext {
   gboolean ever_heard_back;
   guint timeout_id;
   GdkWindow *gdk_window;
+  MessageBox *messagebox;
 } FilterContext;
 
 static gboolean
@@ -200,15 +201,17 @@ event_filter (GdkXEvent *xevent,
 				 result_value);
 	    }
 	  
-	  if (message)
-	    {
-	      messagebox_show (NULL, message);
-	      g_free (message);
-	    }
-
 	  if (result_value/100 == 2)
 	    {
 	      go_round_again = TRUE;
+	      context->messagebox = messagebox_new ();
+	    }
+
+	  if (message)
+	    {
+	      messagebox_show (context->messagebox,
+			       message);
+	      g_free (message);
 	    }
 
 	  start_stop_event_filter_timeout (context,
@@ -220,6 +223,7 @@ event_filter (GdkXEvent *xevent,
 					event_filter,
 					context);
 
+	      messagebox_unref (context->messagebox);
 	      g_free (context);
 	    }
 	}
@@ -248,6 +252,7 @@ monitor_window (Window window)
   context->ever_heard_back = FALSE;
   context->timeout_id = 0;
   context->gdk_window = foreign;
+  context->messagebox = NULL;
 
   start_stop_event_filter_timeout (context, TRUE);
 
