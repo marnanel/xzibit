@@ -72,6 +72,11 @@ show_unshare_messagebox(const char *message,
 		    context);
 
   gtk_widget_show_all (window);
+
+  window_set_sharing (GDK_WINDOW_XID (GTK_WIDGET (window)->window),
+		      SHARING_UNSHAREABLE,
+		      NULL, NULL,
+		      FALSE);
 }
 
 MessageBox*
