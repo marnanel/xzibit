@@ -101,7 +101,7 @@ event_filter (GdkXEvent *xevent,
     (FilterContext*) user_data;
   XEvent *ev = (XEvent*) xevent;
 
-  if (ev->type = PropertyNotify)
+  if (ev->type == PropertyNotify)
     {
       XPropertyEvent *propev =
 	(XPropertyEvent*) xevent;
