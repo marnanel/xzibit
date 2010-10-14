@@ -36,6 +36,7 @@ typedef struct _ContactContext {
   GtkWidget *label;
   GHashTable *sources;
   contact_chooser_cb *callback;
+  void *user_data;
 } ContactContext;
 
 /**
@@ -165,7 +166,8 @@ handle_response (GtkDialog *dialogue,
       context->callback (123,
 			 (char*) g_hash_table_lookup (context->sources,
 						      g_value_get_string (&value)),
-			 g_value_get_string (&value));
+			 g_value_get_string (&value),
+                         context->user_data);
 
       g_value_unset (&value);
       g_list_foreach (paths, (GFunc) gtk_tree_path_free, NULL);
@@ -182,7 +184,8 @@ handle_response (GtkDialog *dialogue,
 
 GtkWidget*
 show_contact_chooser (int window_id,
-		      contact_chooser_cb callback)
+		      contact_chooser_cb callback,
+                      void *user_data)
 {
   ContactContext *context =
     g_malloc (sizeof (ContactContext));
@@ -226,6 +229,7 @@ show_contact_chooser (int window_id,
 			   g_free,
 			   g_free);
   context->callback = callback;
+  context->user_data = user_data;
 
   context->treeview =
     gtk_tree_view_new_with_model (GTK_TREE_MODEL (context->model));
@@ -299,10 +303,11 @@ show_contact_chooser (int window_id,
 static void
 dump_contact_chooser_result (int window,
 			     const char* source,
-			     const char* target)
+			     const char* target,
+                             void *user_data)
 {
-  g_print ("Result was: window %x, source %s, target %s\n",
-	     window, source, target);
+  g_print ("Result was: window %x, source %s, target %s, user_data %p\n",
+           window, source, target, user_data);
 }
 
 int
@@ -314,7 +319,8 @@ main (int argc, char **argv)
   
   window =
     show_contact_chooser (177,
-			  dump_contact_chooser_result);
+			  dump_contact_chooser_result,
+                          NULL);
 
   g_signal_connect (window,
 		    "delete-event",

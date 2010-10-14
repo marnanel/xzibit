@@ -33,10 +33,12 @@
 
 typedef void contact_chooser_cb (int,
 				 const char*,
-				 const char*);
+				 const char*,
+                                 void *);
 
 GtkWidget *
 show_contact_chooser (int window,
-		      contact_chooser_cb callback);
+		      contact_chooser_cb callback,
+                      void *user_data);
 
 #endif /* !CONTACT_CHOOSER */
