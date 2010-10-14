@@ -935,7 +935,7 @@ share_window_finish (Display *dpy,
   int actual_format;
   unsigned long n_items, bytes_after;
   unsigned char *property;
-  unsigned char *name_of_window = "";
+  unsigned char *name_of_window = NULL;
   unsigned char type_of_window[2] = { 0, 0 };
 
   /* Kick off VNC as appropriate */
@@ -966,7 +966,6 @@ share_window_finish (Display *dpy,
 
   /* also supply metadata */
 
-  /* FIXME: We should also consider WM_NAME */
   if (XGetWindowProperty(dpy,
                          window->window,
                          gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
@@ -983,7 +982,28 @@ share_window_finish (Display *dpy,
       name_of_window = property;
     }
 
-  if (XGetWindowProperty(dpy,
+  if (!name_of_window &&
+      XGetWindowProperty(dpy,
+                         window->window,
+                         gdk_x11_get_xatom_by_name ("WM_NAME"),
+                         0,
+                         1024,
+                         False,
+                         gdk_x11_get_xatom_by_name ("STRING"),
+                         &actual_type,
+                         &actual_format,
+                         &n_items,
+                         &bytes_after,
+                         &property)==Success)
+    {
+      name_of_window = property;
+    }
+
+  g_print ("Name of window is %s",
+           name_of_window);
+
+  if (name_of_window &&
+      XGetWindowProperty(dpy,
                          window->window,
                          gdk_x11_get_xatom_by_name ("_NET_WM_WINDOW_TYPE"),
                          0,
@@ -996,20 +1016,26 @@ share_window_finish (Display *dpy,
                          &bytes_after,
                          &property)==Success)
     {
-      char *type = XGetAtomName(dpy,
-                                *((int*) property));
+      char *type = NULL;
       int i=0;
+
+      if (property)
+        type = XGetAtomName(dpy,
+                            *((int*) property));
 
       /* FIXME: Presumably that can fail */
 
-      while (window_types[i][0])
+      if (type)
         {
-          if (strcmp(window_types[i][1], type)==0)
+          while (window_types[i][0])
             {
-              type_of_window[0] = window_types[i][0][0];
-              break;
+              if (strcmp(window_types[i][1], type)==0)
+                {
+                  type_of_window[0] = window_types[i][0][0];
+                  break;
+                }
+              i++;
             }
-          i++;
         }
     }
 
@@ -2282,7 +2308,7 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
         Atom xzibit_share_atom = gdk_x11_get_xatom_by_name ("_XZIBIT_SHARE");
 
         ensure_display (plugin, property->display);
-      
+
         if (property->atom != xzibit_share_atom)
           return FALSE;
 
