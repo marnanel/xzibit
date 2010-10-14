@@ -163,8 +163,7 @@ handle_response (GtkDialog *dialogue,
 				0,
 				&value);
 
-      context->callback (123,
-			 (char*) g_hash_table_lookup (context->sources,
+      context->callback ((char*) g_hash_table_lookup (context->sources,
 						      g_value_get_string (&value)),
 			 g_value_get_string (&value),
                          context->user_data);
@@ -183,8 +182,7 @@ handle_response (GtkDialog *dialogue,
 }
 
 GtkWidget*
-show_contact_chooser (int window_id,
-		      contact_chooser_cb callback,
+show_contact_chooser (contact_chooser_cb callback,
                       void *user_data)
 {
   ContactContext *context =
@@ -301,13 +299,12 @@ show_contact_chooser (int window_id,
 #ifdef CONTACT_CHOOSER_TEST
 
 static void
-dump_contact_chooser_result (int window,
-			     const char* source,
+dump_contact_chooser_result (const char* source,
 			     const char* target,
                              void *user_data)
 {
-  g_print ("Result was: window %x, source %s, target %s, user_data %p\n",
-           window, source, target, user_data);
+  g_print ("Result was: source %s, target %s, user_data %p\n",
+           source, target, user_data);
 }
 
 int
@@ -318,8 +315,7 @@ main (int argc, char **argv)
   gtk_init (&argc, &argv);
   
   window =
-    show_contact_chooser (177,
-			  dump_contact_chooser_result,
+    show_contact_chooser (dump_contact_chooser_result,
                           NULL);
 
   g_signal_connect (window,

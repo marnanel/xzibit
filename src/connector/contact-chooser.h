@@ -31,14 +31,12 @@
 
 #include <gtk/gtk.h>
 
-typedef void contact_chooser_cb (int,
-				 const char*,
+typedef void contact_chooser_cb (const char*,
 				 const char*,
                                  void *);
 
 GtkWidget *
-show_contact_chooser (int window,
-		      contact_chooser_cb callback,
+show_contact_chooser (contact_chooser_cb callback,
                       void *user_data);
 
 #endif /* !CONTACT_CHOOSER */
