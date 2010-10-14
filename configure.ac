@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(xzibit, 0.03, thomas.thurman@collabora.co.uk)
+AC_INIT(xzibit, 0.04, thomas.thurman@collabora.co.uk)
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_SRCDIR(src/xzibit-plugin.c)
 
