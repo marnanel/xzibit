@@ -39,5 +39,5 @@ PKG_CHECK_MODULES([TELEPATHY_GLIB], [telepathy-glib >= 0.11.12])
 AC_SUBST([TELEPATHY_GLIB_CFLAGS])
 AC_SUBST([TELEPATHY_GLIB_LIBS])
 
-AC_OUTPUT(Makefile src/Makefile src/jupiter/Makefile)
+AC_OUTPUT(Makefile src/Makefile src/jupiter/Makefile src/connector/Makefile)
 
