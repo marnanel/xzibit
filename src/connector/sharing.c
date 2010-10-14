@@ -69,6 +69,12 @@ static void
 start_stop_event_filter_timeout (FilterContext *context,
 				 gboolean create_new_timeout)
 {
+  /*
+   * This is currently turned off, apparently because
+   * of a Xephyr bug, though it may prove to be an Xzibit bug.
+   */
+  return;
+
   if (context->timeout_id)
     {
       /* Remove the old timeout. */
