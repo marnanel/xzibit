@@ -34,6 +34,12 @@
 
 #include "list-contacts.h"
 
+#if 0
+#define DEBUG(...) g_warning(__VA_ARGS__)
+#else
+#define DEBUG(...) ;
+#endif
+
 typedef struct _ClientContext {
   guint n_readying_connections;
   guint n_pending_accounts;
@@ -45,6 +51,7 @@ typedef struct _ClientContext {
 
 typedef struct _AccountFindingContacts {
   gchar *source_account;
+  gchar *source_id;
   ClientContext *context;
 } AccountFindingContacts;
 
@@ -112,15 +119,11 @@ got_contacts_cb (TpConnection *connection,
   /* Build a list of all contacts supporting StreamTube */
   for (i = 0; i < n_contacts; i++)
     {
+      DEBUG ("Considering candidate %d of %d",
+	     i, n_contacts);
       if (_capabilities_has_stream_tube (tp_contact_get_capabilities (contacts[i]),
 					 afc->context->wanted_service))
 	candidates = g_list_prepend (candidates, contacts[i]);
-    }
-
-  if (candidates == NULL)
-    {
-      g_warning ("No suitable contact\n");
-      return;
     }
 
   for (l = candidates; l != NULL; l = l->next)
@@ -128,6 +131,7 @@ got_contacts_cb (TpConnection *connection,
       TpContact *contact = l->data;
 
       afc->context->callback (afc->source_account,
+			      afc->source_id,
 			      tp_contact_get_identifier (contact),
 			      afc->context->user_data);
     }
@@ -136,16 +140,15 @@ got_contacts_cb (TpConnection *connection,
 
   if (--(afc->context->n_pending_accounts)==0)
     {
-      afc->context->callback (NULL, NULL,
+      afc->context->callback (NULL, NULL, NULL,
 			      afc->context->user_data);
       g_free (afc->context->wanted_service);
       g_free (afc->context);
     }
 
   g_free (afc->source_account);
+  g_free (afc->source_id);
   g_free (afc);
-
-  /* FIXME: and free afc */
 }
 
 static void
@@ -243,6 +246,10 @@ connection_prepare_cb (GObject *object,
           }
     }
 
+  DEBUG ("Prepared connection %p, %d remaining",
+	 connection,
+	 context->n_readying_connections-1);
+
   /* Are we done? */
   if (--context->n_readying_connections == 0)
     {
@@ -257,10 +264,13 @@ connection_prepare_cb (GObject *object,
       GHashTable *request;
       AccountFindingContacts *afc;
 
+      DEBUG ("Scanning through stored connections");
+
       while (cursor)
 	{
 	  afc = g_malloc (sizeof (AccountFindingContacts));
 	  afc->source_account = g_strdup (tp_proxy_get_object_path (cursor->data));
+	  afc->source_id = g_strdup (tp_account_get_nickname (cursor->data));
 	  afc->context = context;
 
 	  context->n_pending_accounts++;
@@ -275,6 +285,8 @@ connection_prepare_cb (GObject *object,
 				NULL);
 
 	  connection = tp_account_get_connection (cursor->data);
+
+	  DEBUG ("Ensuring stored channel");
 
 	  tp_cli_connection_interface_requests_call_ensure_channel (connection, -1,
 								    request,
@@ -333,6 +345,9 @@ account_manager_prepare_cb (GObject *object,
           continue;
         }
 
+      DEBUG("Preparing connection %p for %s",
+	    connection, tp_account_get_display_name (account));
+
       context->n_readying_connections++;
       tp_proxy_prepare_async (TP_PROXY (connection), features,
           connection_prepare_cb, context);
@@ -370,6 +385,8 @@ list_contacts (list_contacts_cb *callback,
   context->wanted_service = g_strdup (wanted_service);
   context->user_data = user_data;
 
+  DEBUG ("Preparing account manager");
+
   manager = tp_account_manager_new (dbus);
   tp_proxy_prepare_async (TP_PROXY (manager), NULL,
 			  account_manager_prepare_cb, context);
@@ -381,11 +398,11 @@ list_contacts (list_contacts_cb *callback,
 #ifdef LIST_CONTACTS_TEST
 
 void
-dumper (const gchar *source, const gchar *target,
+dumper (const gchar *source_path, const gchar *source, const gchar *target,
 	gpointer user_data)
 {
-  g_warning ("Mapping: %s -> %s (%p)",
-	     source, target, user_data);
+  g_warning ("Mapping: %s (%s) -> %s (%p)",
+	     source, source_path, target, user_data);
 }
 
 int

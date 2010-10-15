@@ -35,11 +35,13 @@
 
 /**
  * Callback for list_contacts.  This will be called with
- * the source path and the target JID in that order.
+ * the source path, the source JID, and the target JID
+ * in that order.
  * When all possibilities are exhausted, it will be
- * called one final time with both set to NULL.
+ * called one final time with all set to NULL.
  */
 typedef void list_contacts_cb(const gchar*, const gchar*,
+			      const gchar*,
 			      void *);
 
 /**

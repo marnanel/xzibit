@@ -60,14 +60,15 @@ context_maybe_free (ContactContext *context)
 }
 
 static void
-add_contact (const gchar *source,
+add_contact (const gchar *source_path,
+             const gchar *source,
 	     const gchar *target,
 	     gpointer user_data)
 {
   ContactContext *context = (ContactContext*) user_data;
   GtkTreeIter iter;
 
-  if (!source && !target)
+  if (!source_path && !source && !target)
     {
       context->seen_all_contacts = TRUE;
 
@@ -93,7 +94,7 @@ add_contact (const gchar *source,
 
   g_hash_table_insert (context->sources,
 		       (gpointer) g_strdup (target),
-		       (gpointer) g_strdup (source));
+		       (gpointer) g_strdup (source_path));
 
   gtk_list_store_append (context->model,
 			 &iter);
