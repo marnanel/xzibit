@@ -9,6 +9,7 @@
 
 typedef struct _Doppelganger {
   int mpx;
+  GdkCursor *cursor;
 } Doppelganger;
 
 static int
@@ -73,8 +74,35 @@ doppelganger_new (GdkPixbuf *pixbuf,
 {
   Doppelganger *result =
     g_malloc (sizeof (Doppelganger));
+  int current_pointer;
 
   result->mpx = add_mpx_for_window (name);
+  result->cursor = gdk_cursor_new_from_pixbuf
+    (gdk_display_get_default (),
+     pixbuf,
+     0, 0);
+
+  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      &current_pointer);
+  
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      result->mpx);
+
+  if (XGrabPointer(gdk_x11_get_default_xdisplay (),
+		   GDK_ROOT_WINDOW(), False,
+		   ButtonPressMask|ButtonReleaseMask, GrabModeSync,
+		   GrabModeAsync, GDK_ROOT_WINDOW(),
+		   gdk_x11_cursor_get_xcursor (result->cursor),
+		   CurrentTime) != GrabSuccess)
+    {
+      g_warning ("Grab failed.");
+    }
+
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      current_pointer);
 
   return result;
 }
