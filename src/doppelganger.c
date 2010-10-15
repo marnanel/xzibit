@@ -1,5 +1,4 @@
 #include <gtk/gtk.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk-pixbuf/gdk-pixdata.h>
 #include <gdk/gdkx.h>
 #include <math.h>
@@ -8,13 +7,14 @@
 #include <X11/extensions/XI2.h>
 #include <X11/extensions/XInput.h>
 
+#include "doppelganger.h"
 #include "black-cursor.h"
 
-typedef struct _Doppelganger {
+struct _Doppelganger {
   int mpx;
   GdkCursor *cursor;
   GdkCursor *blank;
-} Doppelganger;
+};
 
 static int
 add_mpx_for_window (char *name)
