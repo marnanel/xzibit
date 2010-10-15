@@ -13,6 +13,7 @@
 typedef struct _Doppelganger {
   int mpx;
   GdkCursor *cursor;
+  GdkCursor *blank;
 } Doppelganger;
 
 static int
@@ -69,19 +70,47 @@ add_mpx_for_window (char *name)
   return result;
 }
 
+static void
+show_cursor (Doppelganger *dg)
+{
+  int current_pointer;
+
+  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      &current_pointer);
+  
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      dg->mpx);
+
+  if (XGrabPointer(gdk_x11_get_default_xdisplay (),
+		   GDK_ROOT_WINDOW(), False,
+		   ButtonPressMask|ButtonReleaseMask, GrabModeSync,
+		   GrabModeAsync, GDK_ROOT_WINDOW(),
+		   gdk_x11_cursor_get_xcursor (dg->cursor),
+		   CurrentTime) != GrabSuccess)
+    {
+      g_warning ("Grab failed.");
+    }
+
+  XISetClientPointer (gdk_x11_get_default_xdisplay (),
+		      None,
+		      current_pointer);
+}
+
 Doppelganger*
 doppelganger_new (GdkPixbuf *pixbuf,
 		  char *name)
 {
   Doppelganger *result =
     g_malloc (sizeof (Doppelganger));
-  int current_pointer;
   GdkPixbuf *scaled =
     gdk_pixbuf_scale_simple (pixbuf,
 			     64, 64,
 			     GDK_INTERP_BILINEAR);
   GdkPixdata black_arrow_data;
   GdkPixbuf *black_arrow;
+  GdkPixbuf *blank;
 
   result->mpx = add_mpx_for_window (name);
 
@@ -97,6 +126,7 @@ doppelganger_new (GdkPixbuf *pixbuf,
       /* This won't happen in practice, so it can be fatal */
       g_error ("Failed to deseralise pointer.");
     }
+
   black_arrow =
     gdk_pixbuf_from_pixdata (&black_arrow_data,
 			     TRUE,
@@ -107,35 +137,24 @@ doppelganger_new (GdkPixbuf *pixbuf,
 			0.0, 0.0, 1.0, 1.0,
 			GDK_INTERP_NEAREST,
 			255);
-  /*gdk_pixbuf_unref (black_arrow);*/
-
+  gdk_pixbuf_unref (black_arrow);
+  
   result->cursor = gdk_cursor_new_from_pixbuf
     (gdk_display_get_default (),
      scaled,
      0, 0);
   gdk_pixbuf_unref (scaled);
 
-  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
-		      None,
-		      &current_pointer);
-  
-  XISetClientPointer (gdk_x11_get_default_xdisplay (),
-		      None,
-		      result->mpx);
+  blank = gdk_pixbuf_new (GDK_COLORSPACE_RGB,
+			  TRUE,
+			  8, 1, 1);
+  result->blank = gdk_cursor_new_from_pixbuf
+    (gdk_display_get_default (),
+     blank,
+     0, 0);
+  gdk_pixbuf_unref (blank);
 
-  if (XGrabPointer(gdk_x11_get_default_xdisplay (),
-		   GDK_ROOT_WINDOW(), False,
-		   ButtonPressMask|ButtonReleaseMask, GrabModeSync,
-		   GrabModeAsync, GDK_ROOT_WINDOW(),
-		   gdk_x11_cursor_get_xcursor (result->cursor),
-		   CurrentTime) != GrabSuccess)
-    {
-      g_warning ("Grab failed.");
-    }
-
-  XISetClientPointer (gdk_x11_get_default_xdisplay (),
-		      None,
-		      current_pointer);
+  show_cursor (result);
 
   return result;
 }
@@ -154,6 +173,24 @@ doppelganger_move (Doppelganger *dg,
 		 None, GDK_ROOT_WINDOW(),
 		 0, 0, 0, 0,
 		 x, y);
+}
+
+void
+doppelganger_hide (Doppelganger *dg)
+{
+  XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
+			    0,
+			    gdk_x11_cursor_get_xcursor (dg->blank),
+			    CurrentTime);
+}
+
+void
+doppelganger_show (Doppelganger *dg)
+{
+  XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
+			    0,
+			    gdk_x11_cursor_get_xcursor (dg->cursor),
+			    CurrentTime);
 }
 
 void
@@ -187,6 +224,15 @@ doppelganger_turn (gpointer user_data)
   while (place>360.0)
     {
       place -= 360.0;
+    }
+
+  if (place==300.0)
+    {
+      doppelganger_hide (dg);
+    }
+  else if (place==350.0)
+    {
+      doppelganger_show (dg);
     }
 
   doppelganger_move (dg,
