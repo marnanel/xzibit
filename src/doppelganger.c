@@ -1,11 +1,14 @@
 #include <gtk/gtk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <gdk-pixbuf/gdk-pixdata.h>
 #include <gdk/gdkx.h>
 #include <math.h>
 #include <X11/X.h>
 #include <X11/extensions/XInput2.h>
 #include <X11/extensions/XI2.h>
 #include <X11/extensions/XInput.h>
+
+#include "black-cursor.h"
 
 typedef struct _Doppelganger {
   int mpx;
@@ -28,8 +31,6 @@ add_mpx_for_window (char *name)
   add.name = name;
   add.send_core = True;
   add.enable = True;
-
-  g_warning ("Adding new pointer called %s", name);
 
   XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
 		     (XIAnyHierarchyChangeInfo*) &add,
@@ -75,12 +76,44 @@ doppelganger_new (GdkPixbuf *pixbuf,
   Doppelganger *result =
     g_malloc (sizeof (Doppelganger));
   int current_pointer;
+  GdkPixbuf *scaled =
+    gdk_pixbuf_scale_simple (pixbuf,
+			     64, 64,
+			     GDK_INTERP_BILINEAR);
+  GdkPixdata black_arrow_data;
+  GdkPixbuf *black_arrow;
 
   result->mpx = add_mpx_for_window (name);
+
+  /*
+   * Composite a black arrow onto the top left-hand
+   * corner.
+   */
+  if (!gdk_pixdata_deserialize (&black_arrow_data,
+				-1,
+				black_cursor,
+				NULL))
+    {
+      /* This won't happen in practice, so it can be fatal */
+      g_error ("Failed to deseralise pointer.");
+    }
+  black_arrow =
+    gdk_pixbuf_from_pixdata (&black_arrow_data,
+			     TRUE,
+			     NULL);
+  gdk_pixbuf_composite (black_arrow,
+			scaled,
+			0, 0, 13, 21,
+			0.0, 0.0, 1.0, 1.0,
+			GDK_INTERP_NEAREST,
+			255);
+  /*gdk_pixbuf_unref (black_arrow);*/
+
   result->cursor = gdk_cursor_new_from_pixbuf
     (gdk_display_get_default (),
-     pixbuf,
+     scaled,
      0, 0);
+  gdk_pixbuf_unref (scaled);
 
   XIGetClientPointer (gdk_x11_get_default_xdisplay (),
 		      None,
