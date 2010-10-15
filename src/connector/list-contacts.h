@@ -26,6 +26,8 @@
 #ifndef LIST_CONTACTS_H
 #define LIST_CONTACTS_H 1
 
+#include <glib.h>
+
 /*
  * TO DO: Might be useful to have a specialised version
  * of list_contacts() which only listed pairs where you
