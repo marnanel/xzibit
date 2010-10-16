@@ -110,6 +110,14 @@ The defined opcodes are:
             this information may also be sent over RFB, but only in one
             direction.  Such information should be treated equally whether
             it was received using MOUSE or via RFB.
+	    This opcode may also be validly followed by no other data,
+            in which case the pointer is pointing at no relevant window
+            and should be hidden.
+ 0x09 ACCEPT. If this is followed by a single byte whose value is 0,
+            the remote side is not accepting any requests.  The connection
+            may be closed because of this.  If it is followed by no
+            more data, then the remote side has agreed that windows
+            may be created on this connection.
 
 = METADATA =
 
