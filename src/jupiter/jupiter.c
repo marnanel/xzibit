@@ -8,6 +8,8 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include "xzibit-client.h"
 
+#define IMAGE_FILENAME "src/jupiter/jupiter.jpg"
+
 XzibitClient *xzibit = NULL;
 int channel;
 char *holst = NULL;
@@ -50,9 +52,14 @@ set_up_jupiter(int socket)
 
   xzibit = xzibit_client_new_from_fd (socket);
 
-  planet = gdk_pixbuf_new_from_file ("src/jupiter/jupiter.jpg",
+  planet = gdk_pixbuf_new_from_file (IMAGE_FILENAME,
 				     NULL);
 
+  if (!planet)
+    {
+      g_error ("Image %s not found",
+	       IMAGE_FILENAME);
+    }
 #if 0
   g_file_get_contents ("jupiter.wav",
 		       &holst,
