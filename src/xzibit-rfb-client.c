@@ -70,12 +70,6 @@ typedef struct {
    */
   int id;
   /**
-   * The doppelganger pointer: the pointer representing the
-   * mouse movements of the person on the other end of
-   * the connection.
-   */
-  int doppelganger_pointer;
-  /**
    * The function which will deal with messages received
    * for this window.
    */
@@ -163,78 +157,6 @@ set_window_id (GtkWidget *window,
 static void vnc_initialized(GtkWidget *vnc, GtkWidget *window)
 {
   /* nothing */
-}
-
-/**
- * Adds the doppelganger cursor for a given window.
- *
- * \bugs  This is currently disabled, because it's
- *        broken.  It needs to be fixed soon.
- *
- * \param received  The window.
- */
-static void
-add_mpx_for_window (XzibitReceivedWindow *received)
-{
-  XIAddMasterInfo add;
-  /* FIXME: Using the respawn ID here, if we have it,
-   * would be less brittle.
-   */
-  gchar *name = g_strdup_printf("xzibit-r-%d-%d",
-				remote_server,
-				received->id);
-  int ndevices;
-  XIDeviceInfo *devices, *device;
-  int i;
-  int current_pointer;
-
-  /* add the device */
-
-  add.type = XIAddMaster;
-  add.name = name;
-  add.send_core = True;
-  add.enable = True;
-
-  g_warning ("Adding new pointer called %s", name);
-
-  XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
-		     (XIAnyHierarchyChangeInfo*) &add,
-		     0 /* <-- FIXME: This should be 1
-		       * but that currently breaks with BadDevice,
-		       * which the man page says can't happen;
-		       * I think it's a bug in the version of
-		       * XInput2 we're using; try again with sid */ );
-
-  /* now see whether it's in the list */
-
-  received->doppelganger_pointer = -1;
-
-  devices = XIQueryDevice(gdk_x11_get_default_xdisplay (),
-			  XIAllDevices, &ndevices);
-
-  for (i = 0; i < ndevices; i++) {
-    device = &devices[i];
-
-    if (g_str_has_prefix (device->name,
-			  name))
-      {
-	switch (device->use)
-	  {
-	  case XISlavePointer:
-	    received->doppelganger_pointer = device->deviceid;
-	    break;
-	  }
-      }
-  }
-
-  if (received->doppelganger_pointer==-1)
-    {
-      g_warning ("The doppelganger pointer for channel %d could not be created.",
-		 received->id);
-    }
-
-  XIFreeDeviceInfo(devices);
-  g_free (name);
 }
 
 /**
@@ -557,7 +479,6 @@ open_new_channel (int channel_id)
   received->window = window;
   received->fd = sockets[0];
   received->id = channel_id;
-  received->doppelganger_pointer = -1;
 
   channel = g_io_channel_unix_new (sockets[0]);
   g_io_add_watch (channel,
@@ -569,8 +490,6 @@ open_new_channel (int channel_id)
 		    "expose-event",
 		    G_CALLBACK(exposed_window),
 		    GINT_TO_POINTER (channel_id));
-
-  add_mpx_for_window (received);
 }
 
 /**
@@ -793,7 +712,6 @@ handle_control_channel_message (int channel,
 
 	audio_channel->fd = -1;
 	audio_channel->window = NULL;
-	audio_channel->doppelganger_pointer = 0;
 
 	audio_channel->id = *audio;
 	audio_channel->handler = handle_audio_message;
@@ -996,7 +914,6 @@ prepare_message_handlers (void)
 
   channel_zero->fd = -1;
   channel_zero->window = NULL;
-  channel_zero->doppelganger_pointer = 0;
 
   channel_zero->id = 0;
   channel_zero->handler = handle_control_channel_message;
