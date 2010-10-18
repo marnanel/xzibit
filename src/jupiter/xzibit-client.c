@@ -487,9 +487,6 @@ xzibit_client_move_pointer (XzibitClient *client,
   send_byte (client, COMMAND_MOUSE);
   send_word (client, x);
   send_word (client, y);
-
-  g_print ("Mouse pointer now at (%d,%d).\n",
-           x, y);
 }
 
 static void

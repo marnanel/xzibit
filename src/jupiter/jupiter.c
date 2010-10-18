@@ -6,6 +6,7 @@
 */
 #include <glib.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <math.h>
 #include "xzibit-client.h"
 
 #define IMAGE_FILENAME "src/jupiter/jupiter.jpg"
@@ -45,6 +46,30 @@ play_holst (gpointer data)
   return result;
 }
 
+static gboolean
+orbit_mouse (gpointer data)
+{
+  GdkPixbuf *planet = (GdkPixbuf*) data;
+  int screensize =
+    gdk_pixbuf_get_width (planet); /* assume it's square */
+  const int half = screensize / 2;
+  static gdouble mouse_position = 0.0;
+  int x = sin(mouse_position)*half+half;
+  int y = cos(mouse_position)*half+half;
+
+  xzibit_client_move_pointer (xzibit,
+			      channel,
+			      x,
+			      y);
+
+  /* and now move the mouse around */
+
+  mouse_position += M_PI/10;
+
+  if (mouse_position > 2*M_PI)
+    mouse_position = 0.0;
+}
+
 void
 set_up_jupiter(int socket)
 {
@@ -71,4 +96,9 @@ set_up_jupiter(int socket)
   xzibit_client_send_video (xzibit, channel, planet);
   xzibit_client_set_title (xzibit, channel, "Jupiter");
   xzibit_client_set_icon (xzibit, channel, planet);
+
+  g_timeout_add (100,
+                 orbit_mouse,
+                 planet);
+
 }
