@@ -1951,6 +1951,8 @@ accept_connections (GIOChannel *source,
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
   GIOChannel *channel;
   XzibitRfbClient *server_details;
+  struct sockaddr_in remote_address;
+  socklen_t remote_address_size = sizeof (remote_address);
 
   g_print ("Connection on our socket.\n");
 
@@ -1961,7 +1963,27 @@ accept_connections (GIOChannel *source,
    * xzibit-rfb-client when needed.
    */
   server_details->server_fd = -1;
-  server_details->top_fd = accept (priv->listening_fd, NULL, NULL);
+  server_details->top_fd = accept (priv->listening_fd,
+                                   (struct sockaddr*) &remote_address,
+                                   &remote_address_size);
+
+  if (remote_address.sin_family!=AF_INET)
+    {
+      /* FIXME: We should probably allow AF_INET6 too */
+      g_warning ("Connection from unexpected address family %d",
+                 remote_address.sin_family);
+      close (server_details->top_fd);
+      return;
+    }
+
+  if (ntohl (remote_address.sin_addr.s_addr) != 0x7f000001)
+    {
+      /* Connection from other than localhost */
+      g_warning ("Someone is attempting to connect to xzibit "
+                 "other than through tubes.  Rejecting.");
+      close (server_details->top_fd);
+      return;
+    }
 
   DEBUG_FLOW ("sending header",
               xzibit_header,
