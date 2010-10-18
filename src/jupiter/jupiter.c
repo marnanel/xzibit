@@ -57,10 +57,14 @@ orbit_mouse (gpointer data)
   int x = sin(mouse_position)*half+half;
   int y = cos(mouse_position)*half+half;
 
-  xzibit_client_move_pointer (xzibit,
-			      channel,
-			      x,
-			      y);
+  if (mouse_position > 5)
+    xzibit_client_hide_pointer (xzibit,
+				channel);
+  else
+    xzibit_client_move_pointer (xzibit,
+				channel,
+				x,
+				y);
 
   /* and now move the mouse around */
 

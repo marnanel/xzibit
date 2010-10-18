@@ -489,6 +489,17 @@ xzibit_client_move_pointer (XzibitClient *client,
   send_word (client, y);
 }
 
+void
+xzibit_client_hide_pointer (XzibitClient *client,
+                            int channel)
+{
+  send_block_header (client,
+                     CONTROL_CHANNEL,
+                     1);
+
+  send_byte (client, COMMAND_MOUSE);
+}
+
 static void
 send_metadata (XzibitClient *client,
                int channel,

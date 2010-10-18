@@ -9,6 +9,8 @@
 #include <X11/extensions/XI2.h>
 #include <X11/extensions/XInput.h>
 
+#include "doppelganger.h"
+
 /****************************************************************
  * Some globals.
  ****************************************************************/
@@ -84,6 +86,12 @@ typedef struct {
 
 GHashTable *received_windows = NULL;
 GHashTable *postponed_metadata = NULL;
+
+/**
+ * The doppelganger cursor.  We have only one per connection.
+ */
+Doppelganger *dg = NULL;
+gboolean dg_is_hidden = FALSE;
 
 /****************************************************************
  * Options.
@@ -813,6 +821,8 @@ handle_control_channel_message (int channel,
 	  }
 	else
 	  {
+#if 0
+	    /* This is probably not the way we want to do it */
 	    avatar_cursor =
 	      gdk_cursor_new_from_pixbuf (gdk_display_get_default (),
 					  pixbuf,
@@ -821,6 +831,7 @@ handle_control_channel_message (int channel,
 	    g_hash_table_foreach (received_windows,
 				  set_custom_cursor_on_received_window_hash_foreach,
 				  NULL);
+#endif
 	  }
       }
       break;
@@ -861,13 +872,26 @@ handle_control_channel_message (int channel,
 	if (length!=5)
 	  {
 	    offscreen = TRUE;
-	    g_print ("Mouse goes offscreen; ignored for now\n");
 	  }
 	else
 	  {
 	    x = buffer[1]|buffer[2]*256;
 	    y = buffer[3]|buffer[4]*256;
-	    g_print ("Mouse at %d,%d; ignored for now\n", x, y);
+	  }
+
+	if (dg_is_hidden != offscreen)
+	  {
+	    if (offscreen)
+	      doppelganger_hide (dg);
+	    else
+	      doppelganger_show (dg);
+
+	    dg_is_hidden = offscreen;
+	  }
+
+	if (!offscreen)
+	  {
+	    doppelganger_move (dg, x, y);
 	  }
       }
       break;
@@ -1054,6 +1078,19 @@ initialise_extensions (void)
   }
 }
 
+static void
+create_doppelganger (void)
+{
+  gchar *name = g_strdup_printf ("xzibit-r-%d",
+				 remote_server);
+
+  dg = doppelganger_new (NULL,
+			 name);
+  g_free (name);
+
+  dg_is_hidden = FALSE;
+}
+
 /**
  * The main function.
  */
@@ -1094,6 +1131,8 @@ main (int argc, char **argv)
     {
       g_warning ("No FD given to follow; we won't be able to do much");
     }
+
+  create_doppelganger ();
 
   gtk_main ();
 }

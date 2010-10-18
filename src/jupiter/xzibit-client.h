@@ -144,6 +144,16 @@ void xzibit_client_move_pointer (XzibitClient *client,
                                  int channel,
                                  int x,
                                  int y);
+
+/**
+ * Hides the mouse pointer.
+ *
+ * \param client  The client.
+ * \param channel The channel ID.
+ */
+void xzibit_client_hide_pointer (XzibitClient *client,
+                                 int channel);
+
 /**
  * Displays an alert dialogue on the remote host.
  * (The remote host may choose to ignore this.)
