@@ -55,6 +55,8 @@
 #include <telepathy-glib/telepathy-glib.h>
 #include <gio/gunixsocketaddress.h>
 
+#include "get-avatar.h"
+
 #define XZIBIT_PORT 1770
 #define TUBE_SERVICE "x-xzibit"
 
@@ -226,6 +228,10 @@ struct _MutterXzibitPluginPrivate
    * The Telepathy account we're sending from.
    */
   TpAccount *sending_account;
+  /**
+   * A PNG-formatted image to use as our avatar.
+   */
+  GString *avatar;
 };
 
 /**
@@ -964,6 +970,31 @@ share_window_finish (Display *dpy,
                   copy_client_to_bottom,
                   forward_data);
 
+  /* Set our avatar. */
+
+  {
+    /* FIXME: does this happen once every window, or once
+     * every connection, or what?  Look into this.
+     */
+
+    MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+    char *buffer = g_malloc (priv->avatar->len + 1);
+
+    buffer[0] = 6; /* "AVATAR" */
+
+    memcpy (buffer+1,
+            priv->avatar->str,
+            priv->avatar->len);
+
+    send_buffer_from_bottom (plugin,
+                             0,
+                             buffer,
+                             priv->avatar->len + 1);
+
+    g_free (buffer);
+  }
+  
+
   /* also supply metadata */
 
   if (XGetWindowProperty(dpy,
@@ -1620,6 +1651,9 @@ share_window (Display *dpy,
           tp_proxy_prepare_async (TP_PROXY (priv->sending_account),
                                   NULL,
                                   account_prepare_cb, window);
+
+          priv->avatar = get_avatar ();
+          
           return;
         }
       else
@@ -1997,6 +2031,43 @@ accept_connections (GIOChannel *source,
               "things will break");
     }
   fsync (server_details->top_fd);
+
+  if (priv->avatar->len!=0)
+    {
+      char avatar_header[5] =
+        { 0, 0, /* control connection */
+          0, 0, /* length (will be replaced) */
+          6     /* send avatar */
+        };
+      int length = priv->avatar->len + 1;
+
+      avatar_header[2] = length % 256;
+      avatar_header[3] = length / 256;
+
+      DEBUG_FLOW ("sending avatar header",
+                  avatar_header,
+                  sizeof (avatar_header));
+      if (write (server_details->top_fd,
+                 avatar_header,
+                 sizeof (avatar_header)) != sizeof (avatar_header))
+        {
+          g_warning ("Could not write avatar header; "
+                     "things will break");
+        }
+        
+
+      DEBUG_FLOW ("sending avatar",
+             priv->avatar->str,
+             priv->avatar->len);
+      if (write (server_details->top_fd,
+                 priv->avatar->str,
+                 priv->avatar->len) != priv->avatar->len)
+        {
+          g_warning ("Could not write avatar; "
+                     "things will break");
+        }
+
+    }
 
   channel = g_io_channel_unix_new (server_details->top_fd);
   g_io_add_watch (channel,
