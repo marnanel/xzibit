@@ -752,8 +752,6 @@ handle_control_channel_message (int channel,
 					       length,
 					       NULL);
 
-	g_warning("--- AVATAR ---");
-
 	pixbuf = gdk_pixbuf_new_from_stream (source,
 					     NULL,
 					     &error);
