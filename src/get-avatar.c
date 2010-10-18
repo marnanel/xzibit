@@ -15,7 +15,7 @@ get_filename (int which)
 	if (env)
 	  return g_strdup (env);
 	else
-	  return "";
+	  return g_strdup ("");
       }
 
     case 1:

@@ -2034,7 +2034,7 @@ accept_connections (GIOChannel *source,
 
   if (priv->avatar->len!=0)
     {
-      char avatar_header[5] =
+      unsigned char avatar_header[5] =
         { 0, 0, /* control connection */
           0, 0, /* length (will be replaced) */
           6     /* send avatar */
@@ -2131,7 +2131,7 @@ copy_bottom_to_client (GIOChannel *source,
 {
   MutterPlugin *plugin = (MutterPlugin*) data;
   MutterXzibitPluginPrivate *priv = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-  char buffer[1024];
+  unsigned char buffer[1024];
   int count, i;
   Window *xid;
   
