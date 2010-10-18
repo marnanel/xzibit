@@ -75,7 +75,13 @@ The defined opcodes are:
  0x01 OPEN, followed by two bytes giving the ID of the channel to open.
             This channel may henceforth be switched to.
  0x02 CLOSE, followed by two bytes giving the ID of the channel to close.
-            This channel may no longer be switched to.
+            This channel may no longer be switched to.  If the channel
+            had not been accepted (see 0x09 ACCEPT), this is a notification
+            that its creation was rejected by the other side.
+            If the parameter is zero, for the control channel, the side
+            sending such a message must then terminate the connection;
+            this means that the sending side has decided to pull the plug
+            for all existing channels.
  0x03 SET, followed by two bytes defining which metadata to set; followed
             by two bytes giving Xzibit ID of the window to set, which may
             not be zero; possibly followed by data giving the new value of
@@ -113,11 +119,13 @@ The defined opcodes are:
 	    This opcode may also be validly followed by no other data,
             in which case the pointer is pointing at no relevant window
             and should be hidden.
- 0x09 ACCEPT. If this is followed by a single byte whose value is 0,
-            the remote side is not accepting any requests.  The connection
-            may be closed because of this.  If it is followed by no
-            more data, then the remote side has agreed that windows
-            may be created on this connection.
+ 0x09 ACCEPT, followed by the xzibit ID of a currently open channel
+            which has not previously been accepted.  This means that
+            the remote side is giving permission for this channel to
+            exist.  (A negative message is given by 0x02 CLOSE.)
+	    After receiving this message, the remote side may begin
+            to send data on this channel.  Channel 0 never needs
+            to be accepted.  Accepting a channel twice over does nothing.
 
 = METADATA =
 
