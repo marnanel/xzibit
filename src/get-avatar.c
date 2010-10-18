@@ -2,6 +2,7 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
 #define IMAGE_FILENAME "/tmp/get-avatar.png"
+#define MAX_DIMENSIONS 100
 
 static char*
 get_filename (int which)
@@ -44,6 +45,51 @@ get_filename (int which)
     }
 }
 
+static GdkPixbuf*
+scale_sensibly (GdkPixbuf *source)
+{
+  int width, height;
+
+  if (!source)
+    return NULL;
+
+  width = gdk_pixbuf_get_width (source);
+  height = gdk_pixbuf_get_height (source);
+
+  if (width > MAX_DIMENSIONS ||
+      height > MAX_DIMENSIONS)
+    {
+      /* Too big!  Scale it. */
+
+      GdkPixbuf *temp;
+      gdouble aspect =
+	((gdouble)width) /
+	((gdouble) height);
+
+      if (aspect > 1.0)
+	{
+	  /* Landscape */
+	  width = MAX_DIMENSIONS;
+	  height = ((gdouble) MAX_DIMENSIONS) / aspect;
+	}
+      else
+	{
+	  /* Portrait (or square) */
+	  height = MAX_DIMENSIONS;
+	  width = ((gdouble) MAX_DIMENSIONS) * aspect;
+	}
+
+      temp = gdk_pixbuf_scale_simple (source,
+				      width, height,
+				      GDK_INTERP_BILINEAR);
+
+      gdk_pixbuf_unref (source);
+      source = temp;
+    }
+
+  return source;
+}
+
 GString*
 get_avatar (void)
 {
@@ -54,9 +100,6 @@ get_avatar (void)
     {
       filename = get_filename (i);
 
-      g_print ("Filename %d: %s\n",
-	       i, filename);
-
       if (filename && *filename &&
 	  g_file_test (filename,
 		       G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR))
@@ -65,19 +108,18 @@ get_avatar (void)
 	  gchar *buffer;
 	  gsize buffer_size;
 
-	  g_print ("A possibility!\n");
-
 	  pixbuf = gdk_pixbuf_new_from_file (filename,
 					     NULL);
 
 	  if (!pixbuf)
 	    {
 	      g_warning ("File %s was not an image; ignoring", filename);
+	      g_free (filename);
 	      i++;
 	      continue;
 	    }
 
-	  /* FIXME: we also need to do scaling */
+	  pixbuf = scale_sensibly (pixbuf);
 
 	  /* FIXME: error checking?? */
 	  gdk_pixbuf_save_to_buffer (pixbuf,
@@ -86,10 +128,12 @@ get_avatar (void)
 				     "png",
 				     NULL, NULL);
 
+	  g_free (filename);
 	  return g_string_new_len (buffer,
 				   buffer_size);
 	}
 
+      g_free (filename);
       i++;
     }
   while (filename);
@@ -117,18 +161,21 @@ main (int argc, char **argv)
 		       result->len,
 		       NULL);
 
-  g_string_free (result, TRUE);
-
   args[0] = "eog";
   args[1] = IMAGE_FILENAME;
   args[2] = NULL;
 
-  g_spawn_async ("/",
-		 args,
-		 NULL,
-		 G_SPAWN_SEARCH_PATH,
-		 NULL, NULL,
-		 NULL, NULL);
+  if (result->len!=0)
+    {
+      g_spawn_async ("/",
+		     args,
+		     NULL,
+		     G_SPAWN_SEARCH_PATH,
+		     NULL, NULL,
+		     NULL, NULL);
+    }
+
+  g_string_free (result, TRUE);
 }
 
 #endif /* GET_AVATAR_TEST */
