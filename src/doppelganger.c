@@ -132,19 +132,15 @@ show_cursor (Doppelganger *dg)
 		      current_pointer);
 }
 
-Doppelganger*
-doppelganger_new (GdkPixbuf *pixbuf,
-		  char *name)
+void
+doppelganger_set_image (Doppelganger *dg,
+                        GdkPixbuf *pixbuf)
 {
-  Doppelganger *result =
-    g_malloc (sizeof (Doppelganger));
   GdkPixbuf *scaled = NULL;
   GdkPixdata black_arrow_data;
   GdkPixbuf *black_arrow;
-  GdkPixbuf *blank;
   GdkPixbuf *cursor_image;
-
-  result->mpx = add_mpx_for_window (name);
+  gboolean preexisting = dg->cursor!=NULL;
 
   if (!gdk_pixdata_deserialize (&black_arrow_data,
 				-1,
@@ -187,11 +183,37 @@ doppelganger_new (GdkPixbuf *pixbuf,
       cursor_image = black_arrow;
     }
 
-  result->cursor = gdk_cursor_new_from_pixbuf
+  if (preexisting)
+    {
+      gdk_cursor_unref (dg->cursor);
+    }
+
+  dg->cursor = gdk_cursor_new_from_pixbuf
     (gdk_display_get_default (),
      cursor_image,
      1, 1);
   gdk_pixbuf_unref (cursor_image);
+
+  if (preexisting)
+    {
+      XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
+                                0,
+                                gdk_x11_cursor_get_xcursor (dg->cursor),
+                                CurrentTime);
+    }
+}
+
+Doppelganger*
+doppelganger_new (char *name)
+{
+  Doppelganger *result =
+    g_malloc (sizeof (Doppelganger));
+  GdkPixbuf *blank;
+
+  result->mpx = add_mpx_for_window (name);
+
+  result->cursor = NULL;
+  doppelganger_set_image (result, NULL);
 
   blank = gdk_pixbuf_new (GDK_COLORSPACE_RGB,
 			  TRUE,
@@ -293,24 +315,44 @@ doppelganger_turn (gpointer user_data)
   return TRUE;
 }
 
+gboolean
+doppelganger_appear (gpointer user_data)
+{
+  Doppelganger *dg =
+    (Doppelganger*) user_data;
+  GdkPixbuf *pixbuf;
+  static gboolean romeo = FALSE;
+
+  pixbuf = gdk_pixbuf_new_from_file
+    (romeo? "romeo.png": "juliet.png",
+     NULL);
+
+  romeo = !romeo;
+
+  doppelganger_set_image (dg, pixbuf);
+
+  gdk_pixbuf_unref (pixbuf);
+
+  return TRUE;
+}
+
 int
 main (int argc, char **argv)
 {
   Doppelganger *dg;
-  GdkPixbuf *pixbuf;
 
   gtk_init (&argc, &argv);
 
   initialise_extensions ();
 
-  pixbuf = gdk_pixbuf_new_from_file ("jupiter/smcv.png",
-				     NULL);
-
-  dg = doppelganger_new (pixbuf,
-			 "fred2");
+  dg = doppelganger_new ("fred2");
 
   g_timeout_add (10,
 		 doppelganger_turn,
+		 dg);
+
+  g_timeout_add (750,
+		 doppelganger_appear,
 		 dg);
 
   gtk_main ();

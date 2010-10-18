@@ -42,14 +42,22 @@ typedef struct _Doppelganger Doppelganger;
  * Creates a doppelganger.  A doppelganger is
  * a mouse pointer under the control of a remote user.
  *
- * \param pixbuf  An icon representing the remote
- *                user.  It will be scaled and used
- *                as part of the new mouse pointer.
  * \param name    An internal identifier for the mouse
  *                pointer as used by XInput2.
  */
-Doppelganger* doppelganger_new (GdkPixbuf *pixbuf,
-				char *name);
+Doppelganger* doppelganger_new (char *name);
+
+/**
+ * Sets an image on a doppelganger.
+ *
+ * \param pixbuf  An icon representing the remote
+ *                user.  It will be scaled and used
+ *                as part of the new mouse pointer.
+ *                If this is NULL, there will be
+ *                no custom image, just an arrow.
+ */
+void doppelganger_set_image (Doppelganger *dg,
+                             GdkPixbuf *pixbuf);
 
 /**
  * Moves a doppelganger around the screen.
