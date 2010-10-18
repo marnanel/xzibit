@@ -35,6 +35,7 @@
 #include <gdk-pixbuf/gdk-pixdata.h>
 #include <gdk/gdkx.h>
 #include <math.h>
+#include <string.h>
 #include <X11/X.h>
 #include <X11/extensions/XInput2.h>
 #include <X11/extensions/XI2.h>
@@ -137,24 +138,19 @@ doppelganger_new (GdkPixbuf *pixbuf,
 {
   Doppelganger *result =
     g_malloc (sizeof (Doppelganger));
-  GdkPixbuf *scaled =
-    gdk_pixbuf_scale_simple (pixbuf,
-			     64, 64,
-			     GDK_INTERP_BILINEAR);
+  GdkPixbuf *scaled = NULL;
   GdkPixdata black_arrow_data;
   GdkPixbuf *black_arrow;
   GdkPixbuf *blank;
+  GdkPixbuf *cursor_image;
 
   result->mpx = add_mpx_for_window (name);
 
-  /*
-   * Composite a black arrow onto the top left-hand
-   * corner.
-   */
   if (!gdk_pixdata_deserialize (&black_arrow_data,
 				-1,
 				black_cursor,
-				NULL))
+				NULL) ||
+      black_cursor == NULL)
     {
       /* This won't happen in practice, so it can be fatal */
       g_error ("Failed to deseralise pointer.");
@@ -164,23 +160,45 @@ doppelganger_new (GdkPixbuf *pixbuf,
     gdk_pixbuf_from_pixdata (&black_arrow_data,
 			     TRUE,
 			     NULL);
-  gdk_pixbuf_composite (black_arrow,
-			scaled,
-			0, 0, 13, 21,
-			0.0, 0.0, 1.0, 1.0,
-			GDK_INTERP_NEAREST,
-			255);
-  gdk_pixbuf_unref (black_arrow);
-  
+
+  if (pixbuf)
+    {
+      scaled = gdk_pixbuf_scale_simple (pixbuf,
+					64, 64,
+					GDK_INTERP_BILINEAR);
+
+      /*
+       * Composite a black arrow onto the top left-hand
+       * corner.
+       */
+
+      gdk_pixbuf_composite (black_arrow,
+                            scaled,
+                            0, 0, 13, 21,
+                            0.0, 0.0, 1.0, 1.0,
+                            GDK_INTERP_NEAREST,
+                            255);
+      gdk_pixbuf_unref (black_arrow);
+
+      cursor_image = scaled;
+    }
+  else
+    {
+      cursor_image = black_arrow;
+    }
+
   result->cursor = gdk_cursor_new_from_pixbuf
     (gdk_display_get_default (),
-     scaled,
-     0, 0);
-  gdk_pixbuf_unref (scaled);
+     cursor_image,
+     1, 1);
+  gdk_pixbuf_unref (cursor_image);
 
   blank = gdk_pixbuf_new (GDK_COLORSPACE_RGB,
 			  TRUE,
 			  8, 1, 1);
+  gdk_pixbuf_fill (blank,
+                   0); /* transparent */
+
   result->blank = gdk_cursor_new_from_pixbuf
     (gdk_display_get_default (),
      blank,
