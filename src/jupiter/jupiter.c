@@ -57,10 +57,12 @@ orbit_mouse (gpointer data)
   int x = sin(mouse_position)*half+half;
   int y = cos(mouse_position)*half+half;
 
+#if 0
   if (mouse_position > 5)
     xzibit_client_hide_pointer (xzibit,
 				channel);
   else
+#endif
     xzibit_client_move_pointer (xzibit,
 				channel,
 				x,
@@ -77,7 +79,7 @@ orbit_mouse (gpointer data)
 void
 set_up_jupiter(int socket)
 {
-  GdkPixbuf *planet;
+  GdkPixbuf *planet, *planet_icon;
 
   xzibit = xzibit_client_new_from_fd (socket);
 
@@ -89,6 +91,10 @@ set_up_jupiter(int socket)
       g_error ("Image %s not found",
 	       IMAGE_FILENAME);
     }
+
+  planet_icon = gdk_pixbuf_new_from_file ("src/jupiter/jupiter.png",
+					  NULL);
+
 #if 0
   g_file_get_contents ("jupiter.wav",
 		       &holst,
@@ -99,7 +105,8 @@ set_up_jupiter(int socket)
 
   xzibit_client_send_video (xzibit, channel, planet);
   xzibit_client_set_title (xzibit, channel, "Jupiter");
-  xzibit_client_set_icon (xzibit, channel, planet);
+  xzibit_client_set_icon (xzibit, channel, planet_icon);
+  xzibit_client_send_avatar (xzibit, planet_icon);
 
   g_timeout_add (100,
                  orbit_mouse,

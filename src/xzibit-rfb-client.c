@@ -49,8 +49,6 @@ int fd_read_channel = 0;
 int fd_read_length = 0;
 char* fd_read_buffer = NULL;
 
-GdkCursor *avatar_cursor = NULL;
-
 typedef void (MessageHandler) (int, unsigned char*, unsigned int);
 
 /**
@@ -401,57 +399,6 @@ typedef struct _PostponedMetadata {
 } PostponedMetadata;
 
 /**
- * Sets our custom cursor on a particular received window.
- *
- * \param received  The window.
- */
-static void
-set_custom_cursor_on_received_window (XzibitReceivedWindow *received)
-{
-  int current_pointer;
-  Window window;
-
-  if (!avatar_cursor ||
-      received->doppelganger_pointer==-1 ||
-      received->window == NULL)
-    return;
-
-  window = GDK_WINDOW_XID (GTK_WIDGET (received->window)->window);
-
-  XIGetClientPointer (gdk_x11_get_default_xdisplay (),
-		      window,
-		      &current_pointer);
-  
-  XISetClientPointer (gdk_x11_get_default_xdisplay (),
-		      window,
-		      received->doppelganger_pointer);
-
-  gdk_window_set_cursor (GTK_WIDGET(received->window)->window,
-			 avatar_cursor);
-
-  XISetClientPointer (gdk_x11_get_default_xdisplay (),
-		      window,
-		      current_pointer);
-}
-
-/**
- * Sets our custom cursor on a particular received window;
- * this is a wrapper for calling from "foreach" for hash tables.
- *
- * \param dummy1    Ignored.
- * \param window    The window, cast to a gpointer.
- * \param dummy2    Ignored.
- */
-static void
-set_custom_cursor_on_received_window_hash_foreach (gpointer dummy1,
-						   gpointer window,
-						   gpointer dummy2)
-{
-  XzibitReceivedWindow *received = window;
-  set_custom_cursor_on_received_window (received);
-}
-
-/**
  * Called when a window is exposed; applies any postponed
  * metadata.
  */
@@ -494,8 +441,6 @@ exposed_window (GtkWidget *widget,
 
       g_slist_free (postponements);
     }
-
-  set_custom_cursor_on_received_window (received);
 
   return FALSE;
 }
@@ -807,6 +752,8 @@ handle_control_channel_message (int channel,
 					       length,
 					       NULL);
 
+	g_warning("--- AVATAR ---");
+
 	pixbuf = gdk_pixbuf_new_from_stream (source,
 					     NULL,
 					     &error);
@@ -821,17 +768,12 @@ handle_control_channel_message (int channel,
 	  }
 	else
 	  {
-#if 0
-	    /* This is probably not the way we want to do it */
-	    avatar_cursor =
-	      gdk_cursor_new_from_pixbuf (gdk_display_get_default (),
-					  pixbuf,
-					  0, 0);
 
-	    g_hash_table_foreach (received_windows,
-				  set_custom_cursor_on_received_window_hash_foreach,
-				  NULL);
-#endif
+	    doppelganger_set_image (dg,
+				    pixbuf);
+
+	    gdk_pixbuf_unref (pixbuf);
+
 	  }
       }
       break;
@@ -1084,8 +1026,7 @@ create_doppelganger (void)
   gchar *name = g_strdup_printf ("xzibit-r-%d",
 				 remote_server);
 
-  dg = doppelganger_new (NULL,
-			 name);
+  dg = doppelganger_new (name);
   g_free (name);
 
   dg_is_hidden = FALSE;
