@@ -1041,8 +1041,6 @@ main (int argc, char **argv)
 
   gtk_init (&argc, &argv);
 
-  g_print ("RFB client starting...\n");
-
   prepare_message_handlers ();
 
   initialise_extensions ();
@@ -1068,7 +1066,9 @@ main (int argc, char **argv)
     }
   else
     {
-      g_warning ("No FD given to follow; we won't be able to do much");
+      g_print ("%s is used internally by Xzibit.  Don't run it directly.\n",
+	       argv[0]);
+      return 255;
     }
 
   create_doppelganger ();
