@@ -725,22 +725,27 @@ handle_control_channel_message (int channel,
     case 8: /* Mouse */
       {
 	gboolean offscreen = FALSE;
-	guint x, y, window;
+	guint x, y, channel;
+	XzibitReceivedWindow *received = NULL;
 
 	if (length == 1 || length == 7)
 	  {
 	    if (length == 7)
 	      {
 		offscreen = FALSE;
-		window = buffer[1]|buffer[2]*256;
+		channel = buffer[1]|buffer[2]*256;
 		x = buffer[3]|buffer[4]*256;
 		y = buffer[5]|buffer[6]*256;
 		g_print ("Mouse is ONSCREEN at %d,%d\n", x, y);
+
+		received =
+		  g_hash_table_lookup (received_windows,
+				       &channel);
 	      }
 	    else
 	      {
 		offscreen = TRUE;
-		x = y = 0;
+		channel = x = y = 0;
 		g_print ("Mouse is OFFSCREEN\n");
 	      }
 
@@ -756,7 +761,9 @@ handle_control_channel_message (int channel,
 
 	    if (!offscreen)
 	      {
-		doppelganger_move (dg, x, y);
+		doppelganger_move_by_window (dg,
+					     GDK_WINDOW_XID (received->window->window),
+					     x, y);
 	      }
 
 	  }
