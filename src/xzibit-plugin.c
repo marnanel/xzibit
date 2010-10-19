@@ -947,6 +947,8 @@ share_window_finish (Display *dpy,
   unsigned char *property;
   unsigned char *name_of_window = NULL;
   unsigned char type_of_window[2] = { 0, 0 };
+  XWindowAttributes get_attr;
+  XSetWindowAttributes set_attr;
 
   /* Kick off VNC as appropriate */
 
@@ -1095,6 +1097,23 @@ share_window_finish (Display *dpy,
   /* Now start things going... */
 
   vnc_start (window->window);
+
+  /* ...request mouse movement information... */
+  /* FIXME: these can fail */
+
+  XGetWindowAttributes (dpy,
+                        window->window,
+                        &get_attr);
+
+  set_attr.event_mask =
+    get_attr.your_event_mask |
+    PointerMotionMask |
+    LeaveWindowMask;
+
+  XChangeWindowAttributes (dpy,
+                           window->window,
+                           CWEventMask,
+                           &set_attr);
 
   /* ...and clean up after ourselves. */
 
@@ -2459,8 +2478,13 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     case MotionNotify:
       {
         XMotionEvent *motion = (XMotionEvent*) event;
+        ForwardedWindow *fwd;
 
-        g_warning ("MotionNotify! %x %d %d", motion->window, motion->x, motion->y);
+        fwd = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
+                                   &(motion->window));
+
+        g_warning ("MotionNotify! %x %d %d %p", motion->window, motion->x, motion->y, fwd);
+
       }
       break;
 
