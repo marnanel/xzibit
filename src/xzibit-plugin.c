@@ -280,7 +280,11 @@ typedef struct _ForwardedWindow {
   /**
    * The xzibit ID of the window we represent.
    */
-  int channel;
+  unsigned int channel;
+  /**
+   * Which rfb-client is dealing with this connection.
+   */
+  unsigned int rfb_client;
   /**
    * The X ID of the window we represent.
    */
@@ -1594,6 +1598,7 @@ share_window (Display *dpy,
   forward_data->plugin = plugin;
   forward_data->channel = xzibit_id;
   forward_data->window = window->window;
+  forward_data->rfb_client = 1; /* for now */
   forward_data->client_fd = vnc_fd (window->window);
 
   key = g_malloc (sizeof (int));
