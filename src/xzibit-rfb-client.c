@@ -725,32 +725,43 @@ handle_control_channel_message (int channel,
     case 8: /* Mouse */
       {
 	gboolean offscreen = FALSE;
-	guint x, y;
+	guint x, y, window;
 
-	if (length!=5)
+	if (length == 1 || length == 7)
 	  {
-	    offscreen = TRUE;
+	    if (length == 7)
+	      {
+		offscreen = FALSE;
+		window = buffer[1]|buffer[2]*256;
+		x = buffer[3]|buffer[4]*256;
+		y = buffer[5]|buffer[6]*256;
+		g_print ("Mouse is ONSCREEN at %d,%d\n", x, y);
+	      }
+	    else
+	      {
+		offscreen = TRUE;
+		x = y = 0;
+		g_print ("Mouse is OFFSCREEN\n");
+	      }
+
+	    if (dg_is_hidden != offscreen)
+	      {
+		if (offscreen)
+		  doppelganger_hide (dg);
+		else
+		  doppelganger_show (dg);
+		
+		dg_is_hidden = offscreen;
+	      }
+
+	    if (!offscreen)
+	      {
+		doppelganger_move (dg, x, y);
+	      }
+
 	  }
 	else
-	  {
-	    x = buffer[1]|buffer[2]*256;
-	    y = buffer[3]|buffer[4]*256;
-	  }
-
-	if (dg_is_hidden != offscreen)
-	  {
-	    if (offscreen)
-	      doppelganger_hide (dg);
-	    else
-	      doppelganger_show (dg);
-
-	    dg_is_hidden = offscreen;
-	  }
-
-	if (!offscreen)
-	  {
-	    doppelganger_move (dg, x, y);
-	  }
+	  g_warning ("Cursor setting with strange length");
       }
       break;
 
