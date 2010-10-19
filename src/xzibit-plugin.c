@@ -2488,6 +2488,18 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
       }
       break;
 
+    case LeaveNotify:
+      {
+        XCrossingEvent *crossing = (XCrossingEvent*) event;
+        ForwardedWindow *fwd;
+
+        fwd = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
+                                   &(crossing->window));
+
+        g_warning ("LeaveNotify! %x %p", crossing->window, fwd);
+
+      }
+
     case GenericEvent:
       switch (event->xcookie.type)
         {
