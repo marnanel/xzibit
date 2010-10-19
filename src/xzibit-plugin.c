@@ -2479,12 +2479,26 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
       {
         XMotionEvent *motion = (XMotionEvent*) event;
         ForwardedWindow *fwd;
+        char xzibit_packet[7];
 
-        fwd = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
+        fwd = g_hash_table_lookup (priv->forwarded_windows_by_x11_id,
                                    &(motion->window));
 
-        g_warning ("MotionNotify! %x %d %d %p", motion->window, motion->x, motion->y, fwd);
+        if (fwd)
+          {
+            xzibit_packet[0] = 8; /* MOUSE */
+            xzibit_packet[1] = (fwd->channel) % 256;
+            xzibit_packet[2] = (fwd->channel) / 256;
+            xzibit_packet[3] = (motion->x) % 256;
+            xzibit_packet[4] = (motion->x) / 256;
+            xzibit_packet[5] = (motion->y) % 256;
+            xzibit_packet[6] = (motion->y) / 256;
 
+            send_buffer_from_bottom (plugin,
+                                     0, /* control */
+                                     xzibit_packet,
+                                     sizeof (xzibit_packet));
+          }
       }
       break;
 
@@ -2492,11 +2506,20 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
       {
         XCrossingEvent *crossing = (XCrossingEvent*) event;
         ForwardedWindow *fwd;
+        char xzibit_packet[1];
 
-        fwd = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
+        fwd = g_hash_table_lookup (priv->forwarded_windows_by_x11_id,
                                    &(crossing->window));
 
-        g_warning ("LeaveNotify! %x %p", crossing->window, fwd);
+        if (fwd)
+          {
+            xzibit_packet[0] = 8; /* MOUSE */
+
+            send_buffer_from_bottom (plugin,
+                                     0, /* control */
+                                     xzibit_packet,
+                                     sizeof (xzibit_packet));
+          }
 
       }
 
