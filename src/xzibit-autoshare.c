@@ -24,6 +24,8 @@
  */
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
+#include <string.h>
+#include <stdlib.h>
 
 Window xid = 0;
 GtkWidget *window, *vbox, *label, *transient;
@@ -169,7 +171,7 @@ embiggen (gpointer data)
         if (source)
           {
             g_warning ("%s on %x\n", source,
-                       GDK_WINDOW_XID (window->window));
+                       (int) GDK_WINDOW_XID (window->window));
 
             XChangeProperty (gdk_x11_get_default_xdisplay (),
                              GDK_WINDOW_XID (window->window),
@@ -230,6 +232,31 @@ do_popups (gpointer dummy)
     return FALSE;
 }
 
+/**
+ * Handler for keypresses on the main window.
+ * Terminates the process with errorlevel 1
+ * if the user types the word "xzibit".
+ */
+static gboolean
+key_pressed (GtkWidget *widget,
+             GdkEventKey *event,
+             gpointer user_data)
+{
+  static gchar *dismissal_word = "xzibit";
+  static gchar *dismissal_cursor;
+
+  if (dismissal_cursor==NULL)
+    dismissal_cursor = dismissal_word;
+
+  if (event->keyval==*dismissal_cursor)
+    dismissal_cursor++;
+  else
+    dismissal_cursor = dismissal_word;
+
+  if (!*dismissal_cursor)
+    exit (1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -262,6 +289,14 @@ main(int argc, char **argv)
 		     vbox);
 
   gtk_widget_show_all (window);
+
+  gdk_window_set_events (window->window,
+                         gdk_window_get_events (window->window) |
+                         GDK_KEY_PRESS_MASK);
+  g_signal_connect (window,
+                    "key_press_event",
+                    G_CALLBACK (key_pressed),
+                    NULL);
 
   xid = GDK_WINDOW_XID (window->window);
 
