@@ -2443,12 +2443,19 @@ xevent_filter (MutterPlugin *plugin, XEvent *event)
     case KeyRelease:
     case ButtonPress:
     case ButtonRelease:
-    case MotionNotify:
       {
         XButtonEvent *button = (XButtonEvent*) event;
 
         vnc_latestTime = button->time;
         vnc_latestSerial = button->serial;
+      }
+      break;
+
+    case MotionNotify:
+      {
+        XMotionEvent *motion = (XMotionEvent*) event;
+
+        g_warning ("MotionNotify! %x %d %d", motion->window, motion->x, motion->y);
       }
       break;
 
