@@ -74,6 +74,23 @@ void doppelganger_move (Doppelganger *dg,
 			int x, int y);
 
 /**
+ * Moves a doppelganger around the screen.
+ * If the doppelganger is invisible, it will
+ * move, but you won't see it.
+ *
+ * \param dg  The doppelganger.
+ * \param x   The X coordinate, relative to
+ *            the top left corner of window w.
+ * \param y   The Y coordinate, relative to
+ *            the top left corner of window w.
+ * \param w   The window which the coordinates
+ *            are relative to.
+ */
+void doppelganger_move_by_window (Doppelganger *dg,
+                                  Window w,
+                                  int x, int y);
+
+/**
  * Sets a doppelganger to be invisible.
  *
  * \param dg  The doppelganger.

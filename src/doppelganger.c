@@ -233,8 +233,9 @@ doppelganger_new (char *name)
 }
 
 void
-doppelganger_move (Doppelganger *dg,
-		   int x, int y)
+doppelganger_move_by_window (Doppelganger *dg,
+                             Window w,
+                             int x, int y)
 {
   int current_pointer;
 
@@ -243,9 +244,18 @@ doppelganger_move (Doppelganger *dg,
 
   XIWarpPointer (gdk_x11_get_default_xdisplay (),
 		 dg->mpx,
-		 None, GDK_ROOT_WINDOW(),
+		 None, w,
 		 0, 0, 0, 0,
 		 x, y);
+}
+
+void
+doppelganger_move (Doppelganger *dg,
+                   int x, int y)
+{
+  doppelganger_move_by_window (dg,
+                               GDK_ROOT_WINDOW (),
+                               x, y);
 }
 
 void
