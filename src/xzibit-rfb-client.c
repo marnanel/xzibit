@@ -736,7 +736,6 @@ handle_control_channel_message (int channel,
 		channel = buffer[1]|buffer[2]*256;
 		x = buffer[3]|buffer[4]*256;
 		y = buffer[5]|buffer[6]*256;
-		g_print ("Mouse is ONSCREEN at %d,%d\n", x, y);
 
 		received =
 		  g_hash_table_lookup (received_windows,
@@ -746,7 +745,6 @@ handle_control_channel_message (int channel,
 	      {
 		offscreen = TRUE;
 		channel = x = y = 0;
-		g_print ("Mouse is OFFSCREEN\n");
 	      }
 
 	    if (dg_is_hidden != offscreen)
