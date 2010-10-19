@@ -26,6 +26,7 @@
 #include <gdk/gdkx.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 Window xid = 0;
 GtkWidget *window, *vbox, *label, *transient;
@@ -255,6 +256,33 @@ key_pressed (GtkWidget *widget,
 
   if (!*dismissal_cursor)
     exit (1);
+
+  return TRUE;
+}
+
+/**
+ * Handler for keypresses on the main window.
+ * Terminates the process with errorlevel 2
+ * if the user clicks at exactly (77, 77).
+ */
+static gboolean
+button_pressed (GtkWidget *widget,
+                GdkEventButton *event,
+                gpointer user_data)
+{
+  int x = floor (event->x);
+  int y = floor (event->y);
+
+  g_print ("Clicked at %d, %d\n",
+           x, y);
+
+  if (x==77 &&
+      y==77)
+    {
+      exit (2);
+    }
+
+  return TRUE;
 }
 
 int
@@ -292,10 +320,16 @@ main(int argc, char **argv)
 
   gdk_window_set_events (window->window,
                          gdk_window_get_events (window->window) |
-                         GDK_KEY_PRESS_MASK);
+                         GDK_KEY_PRESS_MASK|
+                         GDK_BUTTON_PRESS_MASK);
+
   g_signal_connect (window,
                     "key_press_event",
                     G_CALLBACK (key_pressed),
+                    NULL);
+  g_signal_connect (window,
+                    "button_press_event",
+                    G_CALLBACK (button_pressed),
                     NULL);
 
   xid = GDK_WINDOW_XID (window->window);
