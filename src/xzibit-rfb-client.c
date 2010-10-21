@@ -548,7 +548,7 @@ open_new_channel (int channel_id)
   /* Tell X that we want to know about mouse movement. */
 
   g_signal_connect (window, "map",
-		    G_CALLBACK (on_window_map), NULL);
+		    G_CALLBACK (on_window_map), received);
 
   gtk_widget_show_all (window);
 
