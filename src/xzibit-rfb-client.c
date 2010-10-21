@@ -85,6 +85,10 @@ GHashTable *postponed_metadata = NULL;
 Doppelganger *dg = NULL;
 gboolean dg_is_hidden = FALSE;
 
+#ifdef DEBUG
+gboolean bootstrap = FALSE;
+#endif
+
 /****************************************************************
  * Options.
  ****************************************************************/
@@ -97,6 +101,11 @@ static const GOptionEntry options[] =
 	{
 	  "remote-server", 'r', 0, G_OPTION_ARG_INT, &remote_server,
 	  "The Xzibit code for the remote server", NULL },
+#ifdef DEBUG
+	{
+	  "bootstrap", 'b', 0, G_OPTION_ARG_NONE, &bootstrap,
+	  "Imagine we were sent the basic xzibit instructions", NULL },
+#endif
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -413,6 +422,65 @@ close_channel (gpointer data)
   write_to_following_fd (buffer, sizeof(buffer));
 }
 
+static GdkFilterReturn
+event_filter (GdkXEvent *xevent,
+	      GdkEvent *event,
+	      gpointer user_data)
+{
+  XEvent *ev = (XEvent*) xevent;
+  XzibitReceivedWindow *xrw =
+    (XzibitReceivedWindow*) user_data;
+
+  g_warning ("EVENT FILTER");
+
+  if (ev->type == MotionNotify)
+    {
+      XMotionEvent *motion = (XMotionEvent*) event;
+      g_print ("Motion notify (%d,%d) on window %d\n",
+	       motion->x, motion->y,
+	       xrw->id);
+    }
+  else if (ev->type == LeaveNotify)
+    {
+      XCrossingEvent *crossing = (XCrossingEvent*) event;
+      g_print ("Leave notify on window %d",
+	       xrw->id);
+    }
+
+  return GDK_FILTER_CONTINUE;
+}
+
+static void
+on_window_map (GtkWidget *window,
+	       gpointer user_data)
+{
+  XWindowAttributes get_attr;
+  XSetWindowAttributes set_attr;
+  XzibitReceivedWindow *xrw =
+    (XzibitReceivedWindow*) user_data;
+
+  g_warning ("ON WINDOW MAP %x",
+	     (int) GDK_WINDOW_XID(window->window));
+
+  XGetWindowAttributes (gdk_x11_get_default_xdisplay (),
+			GDK_WINDOW_XID (window->window),
+			&get_attr);
+	     
+  set_attr.event_mask =
+    get_attr.your_event_mask |
+    PointerMotionMask |
+    LeaveWindowMask;
+
+  XChangeWindowAttributes (gdk_x11_get_default_xdisplay (),
+			   GDK_WINDOW_XID (window->window),
+			   CWEventMask,
+			   &set_attr);
+
+  gdk_window_add_filter (window->window,
+			 event_filter,
+			 xrw);
+}
+
 /**
  * Opens a new video channel.
  *
@@ -464,6 +532,7 @@ open_new_channel (int channel_id)
   /* for now, it's not resizable */
   gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
 
+  /*
   vnc = vnc_display_new();
   g_signal_connect (window, "delete_event",
 		    G_CALLBACK (close_channel), NULL);
@@ -471,10 +540,19 @@ open_new_channel (int channel_id)
 		   G_CALLBACK (close_channel), NULL);
 
   vnc_display_open_fd (VNC_DISPLAY (vnc), sockets[1]);
+  */
+  vnc = gtk_label_new ("TEST");
 
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
+  /* Tell X that we want to know about mouse movement. */
+
+  g_signal_connect (window, "map",
+		    G_CALLBACK (on_window_map), NULL);
+
   gtk_widget_show_all (window);
+
+  /* Set up "received" with our new information */
 
   received->window = window;
   received->fd = sockets[0];
@@ -824,7 +902,23 @@ check_for_fd_input (GIOChannel *source,
   unsigned char buffer[1024];
   int fd = g_io_channel_unix_get_fd (source);
   int count, i;
-  count = read (fd, &buffer, sizeof(buffer));
+
+#ifdef DEBUG
+  if (bootstrap)
+    {
+      count = 7;
+      buffer[0] = 0; /* Control channel */
+      buffer[1] = 0;
+      buffer[2] = 3; /* 3 bytes payload */
+      buffer[3] = 0;
+      buffer[4] = 1; /* Open */
+      buffer[5] = 1; /* Channel 1 */
+      buffer[6] = 0;
+      bootstrap = FALSE;
+    }
+  else
+#endif
+    count = read (fd, &buffer, sizeof(buffer));
 
   if (count<0) {
     perror ("xzibit");
@@ -842,7 +936,7 @@ check_for_fd_input (GIOChannel *source,
   for (i=0; i<count; i++)
     {
 
-#if 0
+#if 1
       g_print ("(%d/%d) Received %02x in state %d\n",
 	       i+1, count,
 	       buffer[i], fd_read_state);
@@ -960,6 +1054,9 @@ create_doppelganger (void)
   dg = doppelganger_new (name);
   g_free (name);
 
+  /* hide it to begin with */
+  doppelganger_hide (dg);
+
   dg_is_hidden = FALSE;
 }
 
@@ -976,7 +1073,9 @@ main (int argc, char **argv)
 
   prepare_message_handlers ();
 
+  /*
   initialise_extensions ();
+  */
 
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
@@ -996,6 +1095,14 @@ main (int argc, char **argv)
                       G_IO_IN,
                       check_for_fd_input,
                       NULL);
+#ifdef DEBUG
+      if (bootstrap)
+        {
+          check_for_fd_input (channel,
+			      G_IO_IN,
+			      NULL);
+	}
+#endif
     }
   else
     {
@@ -1004,7 +1111,9 @@ main (int argc, char **argv)
       return 255;
     }
 
+  /*
   create_doppelganger ();
+  */
 
   gtk_main ();
 }
