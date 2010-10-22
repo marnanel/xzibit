@@ -57,7 +57,6 @@ add_mpx_for_window (char *name)
   int ndevices;
   XIDeviceInfo *devices, *device;
   int i;
-  int current_pointer;
   int result;
 
   /* add the device */
@@ -108,28 +107,35 @@ static void
 show_cursor (Doppelganger *dg)
 {
   int current_pointer;
+  XIEventMask mask = { dg->mpx, 0, "" };
 
+#if 0
+  /* probably unnecessary */
   XIGetClientPointer (gdk_x11_get_default_xdisplay (),
 		      None,
 		      &current_pointer);
   
+  /* probably unnecessary */
   XISetClientPointer (gdk_x11_get_default_xdisplay (),
 		      None,
 		      dg->mpx);
 
-  if (XGrabPointer(gdk_x11_get_default_xdisplay (),
-		   GDK_ROOT_WINDOW(), False,
-		   ButtonPressMask|ButtonReleaseMask, GrabModeSync,
-		   GrabModeAsync, GDK_ROOT_WINDOW(),
-		   gdk_x11_cursor_get_xcursor (dg->cursor),
-		   CurrentTime) != GrabSuccess)
+  if (XIGrabDevice (gdk_x11_get_default_xdisplay (),
+                    dg->mpx,
+                    GDK_ROOT_WINDOW(), CurrentTime,
+                    gdk_x11_cursor_get_xcursor (dg->cursor),
+                    GrabModeAsync, GrabModeAsync,
+                    True, &mask) != GrabSuccess)
     {
       g_warning ("Grab failed.");
     }
 
+  /* probably unnecessary */
   XISetClientPointer (gdk_x11_get_default_xdisplay (),
 		      None,
 		      current_pointer);
+#endif
+
 }
 
 void
@@ -196,10 +202,12 @@ doppelganger_set_image (Doppelganger *dg,
 
   if (preexisting)
     {
+#if 0
       XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
                                 0,
                                 gdk_x11_cursor_get_xcursor (dg->cursor),
                                 CurrentTime);
+#endif
     }
 }
 
@@ -209,6 +217,7 @@ doppelganger_new (char *name)
   Doppelganger *result =
     g_malloc (sizeof (Doppelganger));
   GdkPixbuf *blank;
+  int current_pointer;
 
   result->mpx = add_mpx_for_window (name);
 
@@ -261,19 +270,23 @@ doppelganger_move (Doppelganger *dg,
 void
 doppelganger_hide (Doppelganger *dg)
 {
+#if 0
   XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
 			    0,
 			    gdk_x11_cursor_get_xcursor (dg->blank),
 			    CurrentTime);
+#endif
 }
 
 void
 doppelganger_show (Doppelganger *dg)
 {
+#if 0
   XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
 			    0,
 			    gdk_x11_cursor_get_xcursor (dg->cursor),
 			    CurrentTime);
+#endif
 }
 
 void

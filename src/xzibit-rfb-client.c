@@ -1073,9 +1073,7 @@ main (int argc, char **argv)
 
   prepare_message_handlers ();
 
-  /*
   initialise_extensions ();
-  */
 
   context = g_option_context_new ("Xzibit RFB client");
   g_option_context_add_main_entries (context, options, NULL);
@@ -1111,9 +1109,7 @@ main (int argc, char **argv)
       return 255;
     }
 
-  /*
   create_doppelganger ();
-  */
 
   gtk_main ();
 }
