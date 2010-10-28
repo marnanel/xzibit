@@ -624,7 +624,9 @@ start (MutterPlugin *plugin)
 
       if (!tp_base_client_register (client, &error))
         {
-          g_error ("Could not register the client.");
+          g_error ("Could not register the client: %s",
+                   error->message);
+          g_error_free (error);
           return;
         }
     }
@@ -975,32 +977,7 @@ share_window_finish (Display *dpy,
                   G_IO_IN,
                   copy_client_to_bottom,
                   forward_data);
-
-  /* Set our avatar. */
-
-  {
-    /* FIXME: does this happen once every window, or once
-     * every connection, or what?  Look into this.
-     */
-
-    MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
-    char *buffer = g_malloc (priv->avatar->len + 1);
-
-    buffer[0] = 6; /* "AVATAR" */
-
-    memcpy (buffer+1,
-            priv->avatar->str,
-            priv->avatar->len);
-
-    send_buffer_from_bottom (plugin,
-                             0,
-                             buffer,
-                             priv->avatar->len + 1);
-
-    g_free (buffer);
-  }
   
-
   /* also supply metadata */
 
   if (XGetWindowProperty(dpy,
@@ -1119,6 +1096,31 @@ share_window_finish (Display *dpy,
 
   XFree (name_of_window);
   g_free (window);
+}
+
+/**
+ * Called once at the beginning of each new connection.
+ */
+static void
+introduce_yourself (MutterPlugin *plugin)
+{
+  /* Set our avatar. */
+
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  char *buffer = g_malloc (priv->avatar->len + 1);
+
+  buffer[0] = 6; /* "AVATAR" */
+
+  memcpy (buffer+1,
+          priv->avatar->str,
+          priv->avatar->len);
+  
+  send_buffer_from_bottom (plugin,
+                           0,
+                           buffer,
+                           priv->avatar->len + 1);
+
+  g_free (buffer);
 }
 
 /**
@@ -2212,7 +2214,13 @@ copy_bottom_to_client (GIOChannel *source,
                                 sizeof(xzibit_header)+3]!=
                   buffer[i])
                 {
+                  /* FIXME g_error() is for programming errors */
                   g_error ("Connected to something that isn't xzibit");
+                }
+
+              if (priv->bottom_stage == -5)
+                {
+                  introduce_yourself (plugin);
                 }
             }
           else
