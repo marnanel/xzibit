@@ -449,6 +449,25 @@ close_channel (gpointer data)
   write_to_following_fd (buffer, sizeof(buffer));
 }
 
+static void
+give_permission_for_channel (unsigned int channel_id)
+{
+  char buffer[7];
+
+  g_warning ("Giving permission for channel %d", channel_id);
+
+  buffer[0] = 0; /* CONTROL_CHANNEL */
+  buffer[1] = 0; /* ditto */
+  buffer[2] = 3; /* length of this message */
+  buffer[3] = 0;
+
+  buffer[4] = 9; /* COMMAND_ACCEPT */
+  buffer[5] = channel_id % 256;
+  buffer[6] = channel_id / 256;
+
+  write_to_following_fd (buffer, sizeof(buffer));
+}
+
 static GdkFilterReturn
 event_filter (GdkXEvent *xevent,
 	      GdkEvent *event,
@@ -555,6 +574,7 @@ open_new_channel (int channel_id)
     }
   /* but let's assume all windows are permitted at present */
   received->permitted = TRUE;
+  give_permission_for_channel (channel_id);
 
   socketpair (AF_LOCAL,
 	      SOCK_STREAM,
