@@ -348,6 +348,18 @@ main(int argc, char **argv)
       return 1;
     }
 
+  if ((source || target) && loopback)
+    {
+      g_print ("You can't loopback and supply source or target.\n");
+      return 2;
+    }
+
+  if (!(source && target) && !loopback)
+    {
+      g_print ("You must supply either --loopback or both --source and --target.\n");
+      return 3;
+    }
+
   g_timeout_add (0, draw_window, context);
 
   gtk_main ();
