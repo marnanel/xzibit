@@ -745,8 +745,8 @@ handle_control_channel_message (int channel,
 	  return;
 	}
       
-      apply_metadata (buffer[1]|buffer[2]*256,
-		      buffer[3]|buffer[4]*256,
+      apply_metadata (buffer[3]|buffer[4]*256,
+		      buffer[1]|buffer[2]*256,
 		      buffer+5,
 		      length-5);
       
