@@ -230,7 +230,7 @@ do_popups (gpointer dummy)
 
 /**
  * Handler for keypresses on the main window.
- * Terminates the process with errorlevel 1
+ * Terminates the process with errorlevel 101
  * if the user types the word "xzibit".
  */
 static gboolean
@@ -250,14 +250,14 @@ key_pressed (GtkWidget *widget,
     dismissal_cursor = dismissal_word;
 
   if (!*dismissal_cursor)
-    exit (1);
+    exit (101);
 
   return TRUE;
 }
 
 /**
  * Handler for keypresses on the main window.
- * Terminates the process with errorlevel 2
+ * Terminates the process with errorlevel 102
  * if the user clicks at exactly (77, 77).
  */
 static gboolean
@@ -274,7 +274,7 @@ button_pressed (GtkWidget *widget,
   if (x==77 &&
       y==77)
     {
-      exit (2);
+      exit (102);
     }
 
   return TRUE;
