@@ -28,13 +28,6 @@
 
 #include <glib.h>
 
-/*
- * TO DO: Might be useful to have a specialised version
- * of list_contacts() which only listed pairs where you
- * were logged in from both the source account and the
- * contact, so we could have a "loopback" button for testing.
- */
-
 /**
  * Callback for list_contacts.  This will be called with
  * the source path, the source JID, and the target JID
