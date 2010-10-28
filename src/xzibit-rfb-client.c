@@ -967,7 +967,7 @@ check_for_fd_input (GIOChannel *source,
   for (i=0; i<count; i++)
     {
 
-#if 1
+#if 0
       g_print ("(%d/%d) Received %02x in state %d\n",
 	       i+1, count,
 	       buffer[i], fd_read_state);
