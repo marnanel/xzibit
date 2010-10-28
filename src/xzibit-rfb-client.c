@@ -99,6 +99,8 @@ typedef enum {
   POLICY_ALLOW_ALWAYS,
 } XzibitWindowCreationPolicy;
 
+XzibitWindowCreationPolicy policy = POLICY_ALLOW_ALWAYS;
+
 /**
  * The doppelganger cursor.  We have only one per connection.
  */
