@@ -169,9 +169,6 @@ embiggen (gpointer data)
 
         if (source)
           {
-            g_warning ("%s on %x\n", source,
-                       (int) GDK_WINDOW_XID (window->window));
-
             XChangeProperty (gdk_x11_get_default_xdisplay (),
                              GDK_WINDOW_XID (window->window),
                              gdk_x11_get_xatom_by_name("_XZIBIT_SOURCE"),
