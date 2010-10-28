@@ -74,6 +74,11 @@ typedef struct {
    * for this window.
    */
   MessageHandler *handler;
+  /**
+   * Whether we have received permission
+   * (implicit or explicit) to display this window.
+   */
+  gboolean permitted;
 } XzibitReceivedWindow;
 
 GHashTable *received_windows = NULL;
@@ -543,6 +548,13 @@ open_new_channel (int channel_id)
 		       received);
 
   received->handler = handle_video_message;
+
+  if (policy != POLICY_ALLOW_ALWAYS)
+    {
+      g_warning ("Can't handle the current window policy");
+    }
+  /* but let's assume all windows are permitted at present */
+  received->permitted = TRUE;
 
   socketpair (AF_LOCAL,
 	      SOCK_STREAM,
