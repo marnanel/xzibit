@@ -353,8 +353,11 @@ vnc_create (Window id)
 
   ensure_servers ();
 
-  private = g_hash_table_lookup (servers,
-				 &id);
+  if (servers)
+    {
+      private = g_hash_table_lookup (servers,
+				     &id);
+    }
 
   if (private)
     return;
