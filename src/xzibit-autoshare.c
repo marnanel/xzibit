@@ -283,23 +283,10 @@ button_pressed (GtkWidget *widget,
   return TRUE;
 }
 
-int
-main(int argc, char **argv)
-{
-  GOptionContext *context;
-  GError *error = NULL;
-
-  gtk_init (&argc, &argv);
-
-  context = g_option_context_new ("Autoshare");
-  g_option_context_add_main_entries (context, options, NULL);
-  g_option_context_parse (context, &argc, &argv, &error);
-  if (error)
-    {
-      g_print ("%s\n", error->message);
-      g_error_free (error);
-      return 1;
-    }
+gboolean
+draw_window (gpointer dummy)
+{ 
+  GOptionContext *context = dummy;
 
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
@@ -339,6 +326,29 @@ main(int argc, char **argv)
 
   g_timeout_add (1000, embiggen, NULL);
   g_timeout_add (7000, do_popups, NULL);
+
+  return FALSE;
+}
+
+int
+main(int argc, char **argv)
+{
+  GOptionContext *context;
+  GError *error = NULL;
+
+  gtk_init (&argc, &argv);
+
+  context = g_option_context_new ("Autoshare");
+  g_option_context_add_main_entries (context, options, NULL);
+  g_option_context_parse (context, &argc, &argv, &error);
+  if (error)
+    {
+      g_print ("%s\n", error->message);
+      g_error_free (error);
+      return 1;
+    }
+
+  g_timeout_add (0, draw_window, context);
 
   gtk_main ();
 
