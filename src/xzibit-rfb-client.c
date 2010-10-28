@@ -809,12 +809,12 @@ handle_control_channel_message (int channel,
 	if (error)
 	  {
 	    /* free it, but ignore it */
+	    g_warning ("We were sent an invalid PNG as an avatar: %s",
+		       error->message);
 	    g_error_free (error);
-	    g_warning ("We were sent an invalid PNG as an avatar.");
 	  }
 	else
 	  {
-
 	    doppelganger_set_image (dg,
 				    pixbuf);
 
