@@ -942,25 +942,6 @@ share_window_finish (Display *dpy,
                      int xzibit_id,
                      ForwardedWindow *forward_data)
 {
-  GIOChannel *channel;
-  Atom actual_type;
-  int actual_format;
-  unsigned long n_items, bytes_after;
-  unsigned char *property;
-  unsigned char *name_of_window = NULL;
-  unsigned char type_of_window[2] = { 0, 0 };
-  XWindowAttributes get_attr;
-  XSetWindowAttributes set_attr;
-
-  /* Kick off VNC as appropriate */
-
-  if (forward_data->client_fd==-1)
-    {
-      /* Not yet opened: open it */
-      vnc_create (window->window);
-      forward_data->client_fd = vnc_fd (window->window);
-    }
-
   /* Tell our counterpart about it */
 
   send_from_bottom (plugin,
@@ -970,131 +951,6 @@ share_window_finish (Display *dpy,
                     xzibit_id / 256,
                     -1);
 
-  /* If we receive data from VNC, send it on. */
-
-  channel = g_io_channel_unix_new (forward_data->client_fd);
-  g_io_add_watch (channel,
-                  G_IO_IN,
-                  copy_client_to_bottom,
-                  forward_data);
-  
-  /* also supply metadata */
-
-  if (XGetWindowProperty(dpy,
-                         window->window,
-                         gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
-                         0,
-                         1024,
-                         False,
-                         gdk_x11_get_xatom_by_name ("UTF8_STRING"),
-                         &actual_type,
-                         &actual_format,
-                         &n_items,
-                         &bytes_after,
-                         &property)==Success)
-    {
-      name_of_window = property;
-    }
-
-  if (!name_of_window &&
-      XGetWindowProperty(dpy,
-                         window->window,
-                         gdk_x11_get_xatom_by_name ("WM_NAME"),
-                         0,
-                         1024,
-                         False,
-                         gdk_x11_get_xatom_by_name ("STRING"),
-                         &actual_type,
-                         &actual_format,
-                         &n_items,
-                         &bytes_after,
-                         &property)==Success)
-    {
-      name_of_window = property;
-    }
-
-  g_print ("Name of window is %s",
-           name_of_window);
-
-  if (name_of_window &&
-      XGetWindowProperty(dpy,
-                         window->window,
-                         gdk_x11_get_xatom_by_name ("_NET_WM_WINDOW_TYPE"),
-                         0,
-                         1,
-                         False,
-                         gdk_x11_get_xatom_by_name ("ATOM"),
-                         &actual_type,
-                         &actual_format,
-                         &n_items,
-                         &bytes_after,
-                         &property)==Success)
-    {
-      char *type = NULL;
-      int i=0;
-
-      if (property)
-        type = XGetAtomName(dpy,
-                            *((int*) property));
-
-      /* FIXME: Presumably that can fail */
-
-      if (type)
-        {
-          while (window_types[i][0])
-            {
-              if (strcmp(window_types[i][1], type)==0)
-                {
-                  type_of_window[0] = window_types[i][0][0];
-                  break;
-                }
-              i++;
-            }
-        }
-    }
-
-  g_print ("Name of window==[%s]; type==[%s]\n",
-             name_of_window,
-             type_of_window);
-
-  send_metadata_from_bottom (plugin,
-                             xzibit_id,
-                             XZIBIT_METADATA_NAME,
-                             name_of_window,
-                             -1);
-
-  send_metadata_from_bottom (plugin,
-                             xzibit_id,
-                             XZIBIT_METADATA_TYPE,
-                             type_of_window,
-                             1);
-
-  /* we don't supply icons yet. */
-
-  /* Now start things going... */
-
-  vnc_start (window->window);
-
-  /* ...request mouse movement information... */
-  /* FIXME: these can fail */
-
-  XGetWindowAttributes (dpy,
-                        window->window,
-                        &get_attr);
-
-  set_attr.event_mask =
-    get_attr.your_event_mask |
-    PointerMotionMask |
-    LeaveWindowMask;
-
-  XChangeWindowAttributes (dpy,
-                           window->window,
-                           CWEventMask,
-                           &set_attr);
-
-  /* ...and clean up after ourselves. */
-
-  XFree (name_of_window);
   g_free (window);
 }
 
@@ -2120,7 +1976,205 @@ handle_message_to_client (MutterPlugin *plugin,
 
   if (channel==0)
     {
-      g_warning ("Possibly a problem: don't know how to deal with ch0 on client messages\n");
+      /* FIXME: this should all live in a separate function */
+
+      if (length==0)
+        return; /* valid but meaningless */
+
+      switch (buffer[0])
+        {
+        case 2: /* CLOSE */
+          /* never happens at present, but... (FIXME) */
+          g_warning ("Problem: channel creation denied, and we haven't "
+                     "properly dealt with this.");
+          break;
+
+        case 6: /* AVATAR */
+          /* we don't care at present.  We will care later. */
+          break;
+
+        case 9: /* ACCEPT */
+          {
+            /* Kick off VNC as appropriate */
+            
+            Atom actual_type;
+            int actual_format;
+            unsigned long n_items, bytes_after;
+            unsigned char *property;
+            unsigned char *name_of_window = NULL;
+            unsigned char type_of_window[2] = { 0, 0 };
+            XWindowAttributes get_attr;
+            XSetWindowAttributes set_attr;
+            GIOChannel *channel;
+            unsigned int channel_number;
+            ForwardedWindow *fw;
+
+            if (length<3)
+              {
+                g_warning ("Accept message ran short");
+                return;
+              }
+
+            channel_number = buffer[1] | (buffer[2]*256);
+
+            g_warning ("=== ACCEPTED CHANNEL %d",
+                       channel_number);
+
+            fw = g_hash_table_lookup (priv->forwarded_windows_by_xzibit_id,
+                                      &channel_number);
+
+            if (!fw)
+              {
+                g_warning ("Attempt to accept channel %d, which doesn't exist",
+                           channel_number);
+                return;
+              }
+
+            if (fw->client_fd!=-1)
+              {
+                /*
+                 * attempt to accept a previously-accepted channel,
+                 * which is a no-op.
+                 */
+                return;
+              }
+
+            vnc_create (fw->window);
+            fw->client_fd = vnc_fd (fw->window);
+
+            /* If we receive data from VNC, send it on. */
+
+            channel = g_io_channel_unix_new (fw->client_fd);
+            g_io_add_watch (channel,
+                            G_IO_IN,
+                            copy_client_to_bottom,
+                            fw);
+
+            /* also supply metadata */
+
+            if (XGetWindowProperty (gdk_x11_get_default_xdisplay (),
+                                    fw->window,
+                                    gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
+                                    0,
+                                    1024,
+                                    False,
+                                    gdk_x11_get_xatom_by_name ("UTF8_STRING"),
+                                    &actual_type,
+                                    &actual_format,
+                                    &n_items,
+                                    &bytes_after,
+                                    &property)==Success)
+              {
+                name_of_window = property;
+              }
+            
+            if (!name_of_window &&
+                XGetWindowProperty(gdk_x11_get_default_xdisplay (),
+                                   fw->window,
+                                   gdk_x11_get_xatom_by_name ("WM_NAME"),
+                                   0,
+                                   1024,
+                                   False,
+                                   gdk_x11_get_xatom_by_name ("STRING"),
+                                   &actual_type,
+                                   &actual_format,
+                                   &n_items,
+                                   &bytes_after,
+                                   &property)==Success)
+              {
+                name_of_window = property;
+              }
+
+            g_print ("Name of window is %s",
+                     name_of_window);
+
+            if (name_of_window &&
+                XGetWindowProperty(gdk_x11_get_default_xdisplay (),
+                                   fw->window,
+                                   gdk_x11_get_xatom_by_name ("_NET_WM_WINDOW_TYPE"),
+                                   0,
+                                   1,
+                                   False,
+                                   gdk_x11_get_xatom_by_name ("ATOM"),
+                                   &actual_type,
+                                   &actual_format,
+                                   &n_items,
+                                   &bytes_after,
+                                   &property)==Success)
+              {
+                char *type = NULL;
+                int i=0;
+                
+                if (property)
+                  type = XGetAtomName(gdk_x11_get_default_xdisplay (),
+                                      *((int*) property));
+                
+                /* FIXME: Presumably that can fail */
+
+                if (type)
+                  {
+                    while (window_types[i][0])
+                      {
+                        if (strcmp(window_types[i][1], type)==0)
+                          {
+                            type_of_window[0] = window_types[i][0][0];
+                            break;
+                          }
+                        i++;
+                      }
+                  }
+              }
+
+            g_print ("Name of window==[%s]; type==[%s]\n",
+                     name_of_window,
+                     type_of_window);
+
+            send_metadata_from_bottom (plugin,
+                                       fw->channel,
+                                       XZIBIT_METADATA_NAME,
+                                       name_of_window,
+                                       -1);
+
+            send_metadata_from_bottom (plugin,
+                                       fw->channel,
+                                       XZIBIT_METADATA_TYPE,
+                                       type_of_window,
+                                       1);
+
+            /* we don't supply icons yet. */
+
+            /* Now start things going... */
+
+            vnc_start (fw->window);
+
+            /* ...request mouse movement information... */
+            /* FIXME: these can fail */
+
+            XGetWindowAttributes (gdk_x11_get_default_xdisplay (),
+                                  fw->window,
+                                  &get_attr);
+
+            set_attr.event_mask =
+              get_attr.your_event_mask |
+              PointerMotionMask |
+              LeaveWindowMask;
+
+            XChangeWindowAttributes (gdk_x11_get_default_xdisplay (),
+                                     fw->window,
+                                     CWEventMask,
+                                     &set_attr);
+
+            /* ...and clean up after ourselves. */
+
+            XFree (name_of_window);
+          }
+          break;
+
+        default:
+          g_warning ("Possibly a problem: don't know how to deal with opcode %d "
+                     "from the client\n", buffer[0]);
+        }
+
       return;
     }
 
