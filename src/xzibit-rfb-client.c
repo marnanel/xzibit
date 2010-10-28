@@ -80,6 +80,26 @@ GHashTable *received_windows = NULL;
 GHashTable *postponed_metadata = NULL;
 
 /**
+ * Policies we can have regarding giving permission to
+ * display windows.  Not all of these are implemented.
+ */
+typedef enum {
+  /**
+   * Ask the first time; if "yes", decay to
+   * POLICY_ALLOW_ALWAYS.
+   */
+  POLICY_ASK_ONCE,
+  /**
+   * Ask each time.
+   */
+  POLICY_ASK_ALWAYS,
+  /**
+   * Always allow windows to be created.
+   */
+  POLICY_ALLOW_ALWAYS,
+} XzibitWindowCreationPolicy;
+
+/**
  * The doppelganger cursor.  We have only one per connection.
  */
 Doppelganger *dg = NULL;
