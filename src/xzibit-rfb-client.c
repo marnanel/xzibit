@@ -566,7 +566,6 @@ open_new_channel (int channel_id)
   /* for now, it's not resizable */
   gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
 
-  /*
   vnc = vnc_display_new();
   g_signal_connect (window, "delete_event",
 		    G_CALLBACK (close_channel), NULL);
@@ -574,8 +573,6 @@ open_new_channel (int channel_id)
 		   G_CALLBACK (close_channel), NULL);
 
   vnc_display_open_fd (VNC_DISPLAY (vnc), sockets[1]);
-  */
-  vnc = gtk_label_new ("TEST");
 
   gtk_container_add (GTK_CONTAINER (window), vnc);
 
