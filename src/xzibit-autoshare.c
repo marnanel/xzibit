@@ -280,10 +280,10 @@ button_pressed (GtkWidget *widget,
   return TRUE;
 }
 
-gboolean
-draw_window (gpointer dummy)
+static gboolean
+draw_window (gpointer user_data)
 { 
-  GOptionContext *context = dummy;
+  GOptionContext *context = user_data;
 
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
@@ -327,6 +327,27 @@ draw_window (gpointer dummy)
   return FALSE;
 }
 
+static void
+loopback_found (const gchar *source_path,
+                const gchar *source_id,
+                const gchar *target_id,
+                gpointer user_data)
+{
+  GOptionContext *context = user_data;
+
+  if (source_path && target_id)
+    {
+      source = g_strdup (source_path);
+      target = g_strdup (target_id);
+
+      g_timeout_add (0, draw_window, context);
+    }
+  else
+    {
+      g_warning ("No loopback found; can't continue.");
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -357,7 +378,21 @@ main(int argc, char **argv)
       return 3;
     }
 
-  g_timeout_add (0, draw_window, context);
+  if (loopback)
+    {
+      find_loopback (loopback_found,
+                     "x-xzibit",
+                     context);
+    }
+  else
+    {
+      /*
+       * just call it.  Call it after GTK starts up
+       * so that it's always called in the same phase
+       * of things.
+       */
+      g_timeout_add (0, draw_window, context);
+    }
 
   gtk_main ();
 
