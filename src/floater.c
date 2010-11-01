@@ -11,6 +11,7 @@ main(int argc, char **argv)
   GtkWidget *image;
   GdkBitmap *mask;
   GdkPixbuf *pixbuf;
+  GdkGC *gc;
 
   gtk_init (&argc, &argv);
 
@@ -26,11 +27,20 @@ main(int argc, char **argv)
       g_error ("Could not load image");
     }
 
-  /*
+  mask = gdk_pixmap_new (NULL,
+			 gdk_pixbuf_get_width (pixbuf),
+			 gdk_pixbuf_get_height (pixbuf),
+			 1);
+
+  gdk_pixbuf_render_threshold_alpha (pixbuf,
+				     mask,
+				     0, 0, 0, 0,
+				     -1, -1,
+				     127);
+
   gtk_widget_shape_combine_mask (window,
 				 mask,
 				 0, 0);
-  */
 
   image = gtk_image_new_from_pixbuf (pixbuf);
   gtk_container_add (GTK_CONTAINER (window),
