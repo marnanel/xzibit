@@ -1,5 +1,5 @@
 /*
-  g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
+  gcc -o floater -g `pkg-config --cflags --libs gtk+-2.0` floater.c
 
   Still to do:
 
