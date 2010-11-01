@@ -3,9 +3,9 @@
 
 #include <glib.h>
 
-typedef void (*pointer_filter_cb) (gpointer,
+typedef void (*pointer_filter_cb) (gconstpointer,
 				   unsigned int,
-				   gpointer);
+				   gconstpointer);
 
 typedef struct _PointerFilter PointerFilter;
 

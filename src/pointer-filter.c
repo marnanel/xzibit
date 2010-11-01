@@ -63,6 +63,7 @@ pointer_filter_read(PointerFilter *pf,
   unsigned int state = 0;
   unsigned int i;
   unsigned int frame_start = 0;
+  unsigned int first_not_sent = 0;
   
   for (i=0; i<length; i++)
     {
@@ -96,6 +97,12 @@ pointer_filter_read(PointerFilter *pf,
 		{
 		  /* Jackpot! */
 		  printf ("Jackpot!\n");
+		  printf ("Sending from %d to %d\n",
+			  first_not_sent, i-6);
+		  pf->callback (chars+first_not_sent,
+				(i-5)-first_not_sent,
+				pf->user_data);
+		  first_not_sent = i+1;
 		}
 	    }
 	  else
@@ -104,6 +111,19 @@ pointer_filter_read(PointerFilter *pf,
 	      i = frame_start+1;
 	    }
 	}
+    }
+
+  if (state!=0)
+    {
+      printf ("At end, and state is not zero.  FIXME.\n");
+    }
+  else
+    {
+      printf ("At end.  Sending from %d to %d\n",
+	      first_not_sent, length);
+      pf->callback (chars+first_not_sent,
+		    length-first_not_sent,
+		    pf->user_data);
     }
 }
 
@@ -146,9 +166,9 @@ hex_to_number (char digit)
 }
 
 static void
-resurrect (gpointer data,
+resurrect (gconstpointer data,
 	   unsigned int length,
-	   gpointer user_data)
+	   gconstpointer user_data)
 {
   printf ("(resurrect %d)\n", length);
 }
