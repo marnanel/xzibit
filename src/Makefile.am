@@ -1,6 +1,6 @@
 dist_bin_SCRIPTS = xzibit-run xzibit-demo
 
-bin_PROGRAMS = xzibit-toggle xzibit-autoshare xzibit-rfb-client
+bin_PROGRAMS = xzibit-toggle xzibit-autoshare xzibit-rfb-client xzibit-is-running
 xzibit_toggle_SOURCES = xzibit-toggle.c
 xzibit_toggle_CPPFLAGS = @X11_CFLAGS@
 xzibit_toggle_LDADD = @X11_LIBS@
@@ -19,3 +19,7 @@ mutterplugin_LTLIBRARIES = libxzibit.la
 libxzibit_la_SOURCES = xzibit-plugin.c vnc.c vnc.h jupiter/common.h jupiter/common.c get-avatar.c get-avatar.h
 libxzibit_la_CPPFLAGS = -g @CLUTTER_CFLAGS@ @GDK_CFLAGS@ @GTK_CFLAGS@ @MUTTER_PLUGINS_CFLAGS@ @TELEPATHY_GLIB_CFLAGS@
 libxzibit_la_LIBADD = @CLUTTER_LIBS@ @GDK_LIBS@ @GTK_LIBS@ @MUTTER_PLUGINS_LIBS@ @TELEPATHY_GLIB_LIBS@ -lXi -lXtst -lXext -lvncserver
+
+xzibit_is_running_SOURCES = xzibit-is-running.c
+xzibit_is_running_CPPFLAGS = @GTK_CFLAGS@
+xzibit_is_running_LDADD = @GTK_LIBS@

@@ -888,6 +888,7 @@ handle_control_channel_message (int channel,
 
 	    if (!offscreen)
 	      {
+		g_print ("SENT mouse move (%d,%d)\n", x, y);
 		doppelganger_move_by_window (dg,
 					     GDK_WINDOW_XID (received->window->window),
 					     x, y);

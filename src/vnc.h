@@ -7,6 +7,8 @@
 extern int vnc_latestTime;
 extern int vnc_latestSerial;
 
+typedef void (*vnc_mouse_movement_cb) (Window, int, int);
+
 /**
  * Creates a new VNC server for the given X ID.
  * If there is already a VNC server for the given ID,
@@ -33,6 +35,15 @@ int vnc_fd (Window id);
  */
 void vnc_supply_pixmap (Window id,
 			GdkPixbuf *pixbuf);
+
+/**
+ * Sets a callback to be notified when the
+ * mouse moves across a window we're looking after.
+ *
+ * \param callback  The callback; pass NULL
+ *                  for no callback.
+ */
+void vnc_set_mouse_callback (vnc_mouse_movement_cb callback);
 
 /**
  * Closes the VNC server for the given X ID.

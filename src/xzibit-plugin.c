@@ -557,6 +557,19 @@ typedef enum {
 } XzibitStartMode;
 
 /**
+ * Called by the VNC server when we receive
+ * notification of mouse movements on the
+ * remote side.
+ */
+static void
+vnc_mouse_callback (Window window,
+                    int x, int y)
+{
+  g_print ("Mouse callback.  Window is %x.  (%d, %d)\n",
+           (int) window, x, y);
+}
+
+/**
  * Sets up the whole system and gets us underway.
  *
  * \param plugin  The plugin.
@@ -721,6 +734,8 @@ start (MutterPlugin *plugin)
                            g_int_equal,
                            g_free,
                            NULL);
+
+  vnc_set_mouse_callback (vnc_mouse_callback);
 }
 
 /**

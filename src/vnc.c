@@ -39,7 +39,6 @@ char* window_types[][2] = {
   {0, 0}
 };
 
-
 typedef struct _VncPrivate {
   int fd;
   int other_fd;
@@ -63,6 +62,11 @@ GHashTable *servers = NULL;
  */
 int vnc_latestTime = 0;
 int vnc_latestSerial = 0;
+
+/**
+ * The mouse movement callback (if any).
+ */
+vnc_mouse_movement_cb mouse_movement_cb = NULL;
 
 static void
 ensure_servers (void)
@@ -184,12 +188,19 @@ handle_mouse_event (int buttonMask,
 {
   VncPrivate *private = (VncPrivate*) cl->screen->screenData;
 
-  if (buttonMask==0)
-    return; /* just a move; we currently ignore this */
+  if (mouse_movement_cb)
+    {
+      mouse_movement_cb (GDK_WINDOW_XID (private->window),
+			 x, y);
+    }
 
-  fakeMouseClick (private->window,
-		  x, y,
-		  True);
+  if (buttonMask!=0)
+    {
+      /* at least one mouse button is pressed */
+      fakeMouseClick (private->window,
+		      x, y,
+		      True);
+    }
 }
 
 static void
@@ -472,6 +483,12 @@ vnc_supply_pixmap (Window id,
   g_warning ("Pixmap supplied for %08x", (unsigned int) id);
 
   /* not implemented */
+}
+
+void
+vnc_set_mouse_callback (vnc_mouse_movement_cb callback)
+{
+  mouse_movement_cb = callback;
 }
 
 void

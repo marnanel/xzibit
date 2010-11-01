@@ -109,6 +109,7 @@ show_cursor (Doppelganger *dg)
   int current_pointer;
   XIEventMask mask = { dg->mpx, 0, "" };
 
+#if 0
   /* probably unnecessary */
   XIGetClientPointer (gdk_x11_get_default_xdisplay (),
 		      None,
@@ -134,6 +135,7 @@ show_cursor (Doppelganger *dg)
 		      None,
 		      current_pointer);
 
+#endif
 }
 
 void
@@ -198,6 +200,7 @@ doppelganger_set_image (Doppelganger *dg,
      1, 1);
   gdk_pixbuf_unref (cursor_image);
 
+#if 0
   if (preexisting)
     {
       XIEventMask mask = { dg->mpx, 0, "" };
@@ -219,6 +222,7 @@ doppelganger_set_image (Doppelganger *dg,
           g_warning ("Grab failed.");
         }
     }
+#endif
 }
 
 Doppelganger*
@@ -280,7 +284,7 @@ doppelganger_move (Doppelganger *dg,
 void
 doppelganger_hide (Doppelganger *dg)
 {
-#if 1
+#if 0
   XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
 			    0,
 			    gdk_x11_cursor_get_xcursor (dg->blank),
@@ -291,7 +295,7 @@ doppelganger_hide (Doppelganger *dg)
 void
 doppelganger_show (Doppelganger *dg)
 {
-#if 1
+#if 0
   XChangeActivePointerGrab (gdk_x11_get_default_xdisplay (),
 			    0,
 			    gdk_x11_cursor_get_xcursor (dg->cursor),
