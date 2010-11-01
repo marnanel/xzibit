@@ -477,8 +477,6 @@ event_filter (GdkXEvent *xevent,
   XzibitReceivedWindow *xrw =
     (XzibitReceivedWindow*) user_data;
 
-  g_warning ("EVENT FILTER");
-
   if (ev->type == MotionNotify)
     {
       XMotionEvent *motion = (XMotionEvent*) event;
