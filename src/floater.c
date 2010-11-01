@@ -2,12 +2,15 @@
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
 */
 #include <gtk/gtk.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 
 int
 main(int argc, char **argv)
 {
   GtkWidget *window;
   GtkWidget *image;
+  GdkBitmap *mask;
+  GdkPixbuf *pixbuf;
 
   gtk_init (&argc, &argv);
 
@@ -15,7 +18,21 @@ main(int argc, char **argv)
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
   gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
 
-  image = gtk_image_new_from_file ("romeo.png");
+  pixbuf = gdk_pixbuf_new_from_file ("romeo.png",
+				     NULL);
+
+  if (!pixbuf)
+    {
+      g_error ("Could not load image");
+    }
+
+  /*
+  gtk_widget_shape_combine_mask (window,
+				 mask,
+				 0, 0);
+  */
+
+  image = gtk_image_new_from_pixbuf (pixbuf);
   gtk_container_add (GTK_CONTAINER (window),
 		     image);
 
