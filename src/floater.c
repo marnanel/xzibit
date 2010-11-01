@@ -1,5 +1,10 @@
 /*
   g_signal_connect (window, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
+
+  Still to do:
+
+  - make it float around
+  - make it float on top as much as possible
 */
 #include <gtk/gtk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
