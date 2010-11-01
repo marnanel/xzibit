@@ -12,6 +12,10 @@ typedef struct _PointerFilter PointerFilter;
 PointerFilter *pointer_filter_new(pointer_filter_cb callback,
 				  gpointer user_data);
 
+void pointer_filter_move(PointerFilter *pf,
+			 unsigned int x,
+			 unsigned int y);
+
 void pointer_filter_read(PointerFilter *pf,
 			 gpointer data,
 			 unsigned int length);

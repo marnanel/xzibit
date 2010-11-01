@@ -35,12 +35,23 @@ pointer_filter_new(pointer_filter_cb callback,
   result->prefix = NULL;
   result->prefix_length = 0;
 
-  result->taboo[0] = 1;
-  result->taboo[1] = 2;
-  result->taboo[2] = 3;
-  result->taboo[3] = 4;
+  result->taboo[0] = 0;
+  result->taboo[1] = 0;
+  result->taboo[2] = 0;
+  result->taboo[3] = 0;
 
   return result;
+}
+
+void
+pointer_filter_move(PointerFilter *pf,
+		    unsigned int x,
+		    unsigned int y)
+{
+  pf->taboo[0] = (x>>8) & 0xFF;
+  pf->taboo[1] = (x   ) & 0xFF;
+  pf->taboo[2] = (y>>8) & 0xFF;
+  pf->taboo[3] = (y   ) & 0xFF;
 }
 
 void
@@ -51,11 +62,48 @@ pointer_filter_read(PointerFilter *pf,
   const unsigned char *chars = data;
   unsigned int state = 0;
   unsigned int i;
+  unsigned int frame_start = 0;
   
   for (i=0; i<length; i++)
     {
       printf ("At %3d, state is %d, char is %02x.\n",
 	      i, state, chars[i]);
+
+      switch (state)
+	{
+	case 0:
+	  if (chars[i]==5)
+	    {
+	      frame_start = i;
+	      state = 1;
+	    }
+	  break;
+
+	case 1:
+	  /* this always matches */
+	  state = 2;
+	  break;
+
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+	  if (chars[i]==pf->taboo[state-2])
+	    {
+	      state++;
+
+	      if (state==6)
+		{
+		  /* Jackpot! */
+		  printf ("Jackpot!\n");
+		}
+	    }
+	  else
+	    {
+	      state = 0;
+	      i = frame_start+1;
+	    }
+	}
     }
 }
 
@@ -141,6 +189,9 @@ run_test (const char* name,
 
   testing = pointer_filter_new (resurrect,
 				NULL);
+
+  pointer_filter_move (testing,
+		       x, y);
 
   pointer_filter_read (testing,
 		       temp,
