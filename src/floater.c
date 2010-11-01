@@ -3,16 +3,35 @@
 
   Still to do:
 
-  - make it float around
   - make it float on top as much as possible
 */
 #include <gtk/gtk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <math.h>
+
+GtkWidget *window;
+
+gboolean
+turn (gpointer user_data)
+{
+  static double place = 0.0;
+
+  place++;
+  while (place>360.0)
+    {
+      place -= 360.0;
+    }
+
+  gtk_window_move (GTK_WINDOW (window),
+		   100+100*sin(place*(M_PI/180)),
+		   100+100*cos(place*(M_PI/180)));
+
+  return TRUE;
+}
 
 int
 main(int argc, char **argv)
 {
-  GtkWidget *window;
   GtkWidget *image;
   GdkBitmap *mask;
   GdkPixbuf *pixbuf;
@@ -52,6 +71,10 @@ main(int argc, char **argv)
 		     image);
 
   gtk_widget_show_all (window);
+
+  g_timeout_add (10,
+		 turn,
+		 NULL);
 
   gtk_main ();
 }
