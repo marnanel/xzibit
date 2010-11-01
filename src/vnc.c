@@ -67,6 +67,7 @@ int vnc_latestSerial = 0;
  * The mouse movement callback (if any).
  */
 vnc_mouse_movement_cb mouse_movement_cb = NULL;
+gpointer mouse_movement_user_data = NULL;
 
 static void
 ensure_servers (void)
@@ -191,7 +192,8 @@ handle_mouse_event (int buttonMask,
   if (mouse_movement_cb)
     {
       mouse_movement_cb (GDK_WINDOW_XID (private->window),
-			 x, y);
+			 x, y,
+			 mouse_movement_user_data);
     }
 
   if (buttonMask!=0)
@@ -486,9 +488,11 @@ vnc_supply_pixmap (Window id,
 }
 
 void
-vnc_set_mouse_callback (vnc_mouse_movement_cb callback)
+vnc_set_mouse_callback (vnc_mouse_movement_cb callback,
+			gpointer user_data)
 {
   mouse_movement_cb = callback;
+  mouse_movement_user_data = user_data;
 }
 
 void

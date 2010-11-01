@@ -563,10 +563,21 @@ typedef enum {
  */
 static void
 vnc_mouse_callback (Window window,
-                    int x, int y)
+                    int x, int y,
+                    gpointer user_data)
 {
-  g_print ("Mouse callback.  Window is %x.  (%d, %d)\n",
-           (int) window, x, y);
+  MutterPlugin *plugin = user_data;
+  MutterXzibitPluginPrivate *priv   = MUTTER_XZIBIT_PLUGIN (plugin)->priv;
+  ForwardedWindow *fw;
+  
+  fw = g_hash_table_lookup (priv->forwarded_windows_by_x11_id,
+                            &window);
+
+  if (!fw)
+    return;
+
+  g_print ("Mouse callback.  Window is %x.  (%d, %d) %p\n",
+           (int) window, x, y, fw);
 }
 
 /**
@@ -735,7 +746,8 @@ start (MutterPlugin *plugin)
                            g_free,
                            NULL);
 
-  vnc_set_mouse_callback (vnc_mouse_callback);
+  vnc_set_mouse_callback (vnc_mouse_callback,
+                          plugin);
 }
 
 /**

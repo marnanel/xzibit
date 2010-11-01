@@ -7,7 +7,8 @@
 extern int vnc_latestTime;
 extern int vnc_latestSerial;
 
-typedef void (*vnc_mouse_movement_cb) (Window, int, int);
+typedef void (*vnc_mouse_movement_cb) (Window, int, int,
+				       gpointer);
 
 /**
  * Creates a new VNC server for the given X ID.
@@ -42,8 +43,10 @@ void vnc_supply_pixmap (Window id,
  *
  * \param callback  The callback; pass NULL
  *                  for no callback.
+ * \param user_data  user data.
  */
-void vnc_set_mouse_callback (vnc_mouse_movement_cb callback);
+void vnc_set_mouse_callback (vnc_mouse_movement_cb callback,
+			     gpointer user_data);
 
 /**
  * Closes the VNC server for the given X ID.
