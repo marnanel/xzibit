@@ -6,6 +6,7 @@
   - make it float on top as much as possible
 */
 #include <gtk/gtk.h>
+#include <gdk/gdkx.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <math.h>
 
@@ -22,9 +23,10 @@ turn (gpointer user_data)
       place -= 360.0;
     }
 
-  gtk_window_move (GTK_WINDOW (window),
-		   100+100*sin(place*(M_PI/180)),
-		   100+100*cos(place*(M_PI/180)));
+  XMoveWindow (GDK_WINDOW_XDISPLAY (window->window),
+	       GDK_WINDOW_XID (window->window),
+	       100+100*sin(place*(M_PI/180)),
+	       100+100*cos(place*(M_PI/180)));
 
   return TRUE;
 }
