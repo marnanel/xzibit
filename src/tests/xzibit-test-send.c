@@ -191,12 +191,6 @@ parse_options (int argc, char **argv)
     {
       window_id = id_of_received_window ();
     }
-
-  g_print ("Results are: %x %d %d %s %d %d\n", 
-	   window_id,
-	   fake_keypresses, fake_mouseclicks,
-	   message,
-	   x, y);
 }
 
 /**
