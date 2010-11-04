@@ -190,6 +190,22 @@ parse_options (int argc, char **argv)
   if (received)
     {
       window_id = id_of_received_window ();
+
+      if (window_id==0)
+        {
+          g_print("%s: You requested a received window, but no windows "
+                  "on this display are received.\n",
+                  argv[0]);
+          exit(3);
+        }
+
+      if (window_id==-1)
+        {
+          g_print("%s: You requested a received window, but multiple windows "
+                  "on this display are received; specify which using --id.\n",
+                  argv[0]);
+          exit(3);
+        }
     }
 }
 
