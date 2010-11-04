@@ -601,6 +601,14 @@ open_new_channel (int channel_id)
 
   gtk_widget_show_all (window);
 
+  /* Mark it with the relevant new X properties. */
+
+  set_window_remote (window);
+
+  set_window_id (window,
+		 remote_server,
+		 channel_id);
+
   /* Set up "received" with our new information */
 
   received->window = window;
