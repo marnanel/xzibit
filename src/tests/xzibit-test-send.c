@@ -191,10 +191,25 @@ parse_options (int argc, char **argv)
 	   x, y);
 }
 
+/**
+ * Initialises appropriate X extensions.
+ */
+static void
+initialise_extensions (void)
+{
+  int major = 2, minor = 0;
+  if (XIQueryVersion (gdk_x11_get_default_xdisplay (),
+                      &major, &minor) == BadRequest) {
+    g_error("XI2 not available. Server supports %d.%d\n", major, minor);
+  }
+}
+
 int
 main(int argc, char **argv)
 {
   gtk_init (&argc, &argv);
+
+  initialise_extensions ();
 
   parse_options (argc, argv);
 }
