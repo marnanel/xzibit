@@ -27,9 +27,11 @@
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
 #include <gdk/gdkx.h>
+#include <X11/keysym.h>
 
 const char *message =
   "All work and no play makes Jack a dull boy.";
+const char *typing_cursor = NULL;
 unsigned int window_id = 0;
 gboolean received = FALSE;
 gboolean fake_keypresses = FALSE;
@@ -204,6 +206,47 @@ initialise_extensions (void)
   }
 }
 
+static void
+fake_keystroke (int window_id,
+                char symbol)
+{
+  int code = XKeysymToKeycode (gdk_x11_get_default_xdisplay (),
+                               symbol);
+
+  if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
+                        code,
+                        True, CurrentTime)==0)
+    {
+      g_warning ("Faking key event failed.");
+    }
+
+  if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
+                        code,
+                        False, CurrentTime)==0)
+    {
+      g_warning ("Faking key event failed.");
+    }
+
+  XFlush (gdk_x11_get_default_xdisplay ());
+}
+
+static gboolean
+type_stuff (gpointer dummy)
+{
+  if (typing_cursor==NULL)
+    typing_cursor = message;
+
+  if (*typing_cursor==0)
+    return FALSE;
+
+  fake_keystroke (window_id,
+                  *typing_cursor);
+
+  typing_cursor++;
+
+  return TRUE;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -212,4 +255,13 @@ main(int argc, char **argv)
   initialise_extensions ();
 
   parse_options (argc, argv);
+
+  if (fake_keypresses)
+    {
+      g_timeout_add (50,
+                     type_stuff,
+                     NULL);
+    }
+
+  gtk_main ();
 }
