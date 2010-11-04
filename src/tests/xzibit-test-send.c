@@ -28,6 +28,9 @@
 #include <X11/Xlib.h>
 #include <gdk/gdkx.h>
 #include <X11/keysym.h>
+#include <X11/extensions/XInput2.h>
+#include <X11/extensions/XI2.h>
+#include <X11/extensions/XInput.h>
 
 const char *message =
   "All work and no play makes Jack a dull boy.";
@@ -36,6 +39,7 @@ unsigned int window_id = 0;
 gboolean received = FALSE;
 gboolean fake_keypresses = FALSE;
 gboolean fake_mouseclicks = FALSE;
+gboolean use_xinput1 = FALSE;
 unsigned int x = 50, y = 50;
 
 static const GOptionEntry options[] =
@@ -61,6 +65,8 @@ static const GOptionEntry options[] =
 	{
 	  "y", 'y', 0, G_OPTION_ARG_INT, &y,
 	  "Y-coordinate within the window to click at", NULL },
+        { "xinput1", '1', 0, G_OPTION_ARG_NONE, &use_xinput1,
+          "Use XInput1 instead of XInput2", NULL},
 	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
 };
 
@@ -199,11 +205,99 @@ parse_options (int argc, char **argv)
 static void
 initialise_extensions (void)
 {
-  int major = 2, minor = 0;
-  if (XIQueryVersion (gdk_x11_get_default_xdisplay (),
-                      &major, &minor) == BadRequest) {
-    g_error("XI2 not available. Server supports %d.%d\n", major, minor);
+  if (!use_xinput1)
+    {
+      int major = 2, minor = 0;
+      if (XIQueryVersion (gdk_x11_get_default_xdisplay (),
+                          &major, &minor) == BadRequest) {
+        g_error("XI2 not available. Server supports %d.%d.  (Try using '-1'.)\n",
+                major, minor);
+      }
+    }
+}
+
+/**
+ * Removes a pointer.
+ *
+ * \param mpx  An XID; this MUST be a master device.
+ */
+static void
+drop_mpx (int mpx)
+{
+  XIRemoveMasterInfo drop;
+
+  drop.type = XIRemoveMaster;
+  drop.deviceid = mpx;
+  drop.return_mode = XIAttachToMaster;
+  drop.return_pointer = 2;
+  drop.return_keyboard = 3;
+
+  XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
+                     (XIAnyHierarchyChangeInfo*) &drop,
+                     1);
+}
+
+static void
+add_mpx_for_window (char *name,
+                    int *master_kbd,
+                    int *slave_kbd,
+                    int *master_ptr)
+{
+  XIAddMasterInfo add;
+  int ndevices;
+  XIDeviceInfo *devices, *device;
+  int i;
+
+  /* add the device */
+
+  add.type = XIAddMaster;
+  add.name = name;
+  add.send_core = True;
+  add.enable = True;
+
+  XIChangeHierarchy (gdk_x11_get_default_xdisplay (),
+		     (XIAnyHierarchyChangeInfo*) &add,
+		     1);
+
+  /* now see whether it's in the list */
+
+  *master_kbd = -1;
+  *slave_kbd = -1;
+  *master_ptr = -1;
+
+  devices = XIQueryDevice(gdk_x11_get_default_xdisplay (),
+			  XIAllDevices, &ndevices);
+
+  for (i = 0; i < ndevices; i++) {
+    device = &devices[i];
+
+    if (g_str_has_prefix (device->name,
+			  name))
+      {
+	switch (device->use)
+	  {
+	  case XIMasterKeyboard:
+	    *master_kbd = device->deviceid;
+	    break;
+
+	  case XISlaveKeyboard:
+	    *slave_kbd = device->deviceid;
+	    break;
+
+	  case XIMasterPointer:
+	    *master_ptr = device->deviceid;
+	    break;
+	  }
+      }
   }
+
+  if (*master_kbd==-1 || *slave_kbd==-1 || *master_ptr==-1)
+    {
+      g_warning ("The new pointer '%s' could not be created.",
+		 name);
+    }
+
+  XIFreeDeviceInfo(devices);
 }
 
 static void
@@ -213,18 +307,78 @@ fake_keystroke (int window_id,
   int code = XKeysymToKeycode (gdk_x11_get_default_xdisplay (),
                                symbol);
 
-  if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
-                        code,
-                        True, CurrentTime)==0)
-    {
-      g_warning ("Faking key event failed.");
-    }
+  int dummy[1] = { 0 };
 
-  if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
-                        code,
-                        False, CurrentTime)==0)
+  if (use_xinput1)
     {
-      g_warning ("Faking key event failed.");
+      if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
+                            code,
+                            True, CurrentTime)==0)
+        {
+          g_warning ("Faking key event failed.");
+        }
+
+      if (XTestFakeKeyEvent(gdk_x11_get_default_xdisplay (),
+                            code,
+                            False, CurrentTime)==0)
+        {
+          g_warning ("Faking key event failed.");
+        }
+    }
+  else
+    {
+      int xid_master_kbd, xid_slave_kbd, xid_master_ptr;
+      int current_pointer;
+      XDevice *dev;
+
+      add_mpx_for_window ("xzibit-test-send",
+                          &xid_master_kbd,
+                          &xid_slave_kbd,
+                          &xid_master_ptr);
+
+      dev = XOpenDevice (gdk_x11_get_default_xdisplay (),
+                         xid_slave_kbd);
+
+      XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          &current_pointer);
+
+      XISetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          xid_master_ptr);
+
+      XSetInputFocus (gdk_x11_get_default_xdisplay (),
+                      (Window) window_id, PointerRoot,
+                      CurrentTime);
+
+      if (XTestFakeDeviceKeyEvent (gdk_x11_get_default_xdisplay (),
+                                   dev,
+                                   code,
+                                   True,
+                                   dummy, 0, CurrentTime)==0)
+        {
+          g_warning ("Faking key event failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      if (XTestFakeDeviceKeyEvent (gdk_x11_get_default_xdisplay (),
+                                   dev,
+                                   code,
+                                   False,
+                                   dummy, 0, CurrentTime)==0)
+        {
+          g_warning ("Faking key event failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      XISetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          current_pointer);
+  
+      XCloseDevice (gdk_x11_get_default_xdisplay (),
+                    dev);
+
+      drop_mpx (xid_master_kbd);
     }
 
   XFlush (gdk_x11_get_default_xdisplay ());
