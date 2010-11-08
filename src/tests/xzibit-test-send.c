@@ -251,7 +251,8 @@ static void
 add_mpx_for_window (char *name,
                     int *master_kbd,
                     int *slave_kbd,
-                    int *master_ptr)
+                    int *master_ptr,
+                    int *slave_ptr)
 {
   XIAddMasterInfo add;
   int ndevices;
@@ -297,11 +298,15 @@ add_mpx_for_window (char *name,
 	  case XIMasterPointer:
 	    *master_ptr = device->deviceid;
 	    break;
+
+	  case XISlavePointer:
+	    *slave_ptr = device->deviceid;
+	    break;
 	  }
       }
   }
 
-  if (*master_kbd==-1 || *slave_kbd==-1 || *master_ptr==-1)
+  if (*master_kbd==-1 || *slave_kbd==-1 || *master_ptr==-1 || *slave_ptr==-1)
     {
       g_warning ("The new pointer '%s' could not be created.",
 		 name);
@@ -337,14 +342,16 @@ fake_keystroke (int window_id,
     }
   else
     {
-      int xid_master_kbd, xid_slave_kbd, xid_master_ptr;
+      int xid_master_kbd, xid_slave_kbd,
+        xid_master_ptr, xid_slave_ptr;
       int current_pointer;
       XDevice *dev;
 
       add_mpx_for_window ("xzibit-test-send",
                           &xid_master_kbd,
                           &xid_slave_kbd,
-                          &xid_master_ptr);
+                          &xid_master_ptr,
+                          &xid_slave_ptr);
 
       dev = XOpenDevice (gdk_x11_get_default_xdisplay (),
                          xid_slave_kbd);
@@ -398,6 +405,7 @@ static void
 fake_mouseclick (int window_id,
                  int x, int y)
 {
+  int dummy[1] = { 0 };
 
   if (use_xinput1)
     {
@@ -429,7 +437,62 @@ fake_mouseclick (int window_id,
     }
   else
     {
-      g_warning ("XInput2 for clicks not yet written");
+      int xid_master_kbd, xid_slave_kbd,
+        xid_master_ptr, xid_slave_ptr;
+      int current_pointer;
+      XDevice *dev;
+
+      add_mpx_for_window ("xzibit-test-send",
+                          &xid_master_kbd,
+                          &xid_slave_kbd,
+                          &xid_master_ptr,
+                          &xid_slave_ptr);
+
+      dev = XOpenDevice (gdk_x11_get_default_xdisplay (),
+                         xid_slave_ptr);
+
+      XIGetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          &current_pointer);
+
+      XISetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          xid_master_ptr);
+
+      XWarpPointer (gdk_x11_get_default_xdisplay (),
+                    (Window) None, (Window) window_id,
+                    0, 0, 0, 0,
+                    x, y);
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      if (XTestFakeDeviceButtonEvent (gdk_x11_get_default_xdisplay (),
+                                      dev,
+                                      1,
+                                      True,
+                                      dummy, 0, CurrentTime)==0)
+        {
+          g_warning ("Faking button press failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      if (XTestFakeDeviceButtonEvent (gdk_x11_get_default_xdisplay (),
+                                      dev,
+                                      1,
+                                      False,
+                                      dummy, 0, CurrentTime)==0)
+        {
+          g_warning ("Faking button release failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      XISetClientPointer (gdk_x11_get_default_xdisplay (),
+                          None,
+                          current_pointer);
+  
+      XCloseDevice (gdk_x11_get_default_xdisplay (),
+                    dev);
+
+      drop_mpx (xid_master_ptr);
     }
 
   XFlush (gdk_x11_get_default_xdisplay ());
