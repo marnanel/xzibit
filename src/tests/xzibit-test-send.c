@@ -394,6 +394,47 @@ fake_keystroke (int window_id,
   XFlush (gdk_x11_get_default_xdisplay ());
 }
 
+static void
+fake_mouseclick (int window_id,
+                 int x, int y)
+{
+
+  if (use_xinput1)
+    {
+      /*
+       * we actually do warp the pointer, not just
+       * fake warping it, for simplicity
+       */
+      XWarpPointer (gdk_x11_get_default_xdisplay (),
+                    (Window) None, (Window) window_id,
+                    0, 0, 0, 0,
+                    x, y);
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      if (XTestFakeButtonEvent (gdk_x11_get_default_xdisplay (),
+                                1, True,
+                                CurrentTime)==0)
+        {
+          g_warning ("Faking button press failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+
+      if (XTestFakeButtonEvent (gdk_x11_get_default_xdisplay (),
+                                1, False,
+                                CurrentTime)==0)
+        {
+          g_warning ("Faking button release failed.");
+        }
+      XFlush (gdk_x11_get_default_xdisplay ());
+    }
+  else
+    {
+      g_warning ("XInput2 for clicks not yet written");
+    }
+
+  XFlush (gdk_x11_get_default_xdisplay ());
+}
+
 static gboolean
 type_stuff (gpointer dummy)
 {
@@ -411,6 +452,15 @@ type_stuff (gpointer dummy)
   return TRUE;
 }
 
+static gboolean
+click_stuff (gpointer dummy)
+{
+  fake_mouseclick (window_id,
+                   x, y);
+
+  return FALSE;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -424,6 +474,13 @@ main(int argc, char **argv)
     {
       g_timeout_add (50,
                      type_stuff,
+                     NULL);
+    }
+
+  if (fake_mouseclicks)
+    {
+      g_timeout_add (100,
+                     click_stuff,
                      NULL);
     }
 
