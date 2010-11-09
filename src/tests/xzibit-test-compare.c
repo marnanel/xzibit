@@ -121,6 +121,8 @@ usage_message (void)
   g_print ("we will wait for the received window to appear.\n");
   g_print ("Otherwise, you'll get this message.\n");
   g_print ("Use the --help option to get a list of possible points of comparison.\n");
+  g_print ("If you're running tests from the commandline,\n");
+  g_print ("you will usually need the -v switch.\n");
 
   exit (255);
 }
@@ -135,7 +137,75 @@ get_window_detail (Window window,
 	       (int) window, point_of_comparison);
     }
 
-  return g_strdup ("Foo");
+  switch (point_of_comparison)
+    {
+    case TEST_COMPARE_TITLE:
+      {
+	Atom actual_type;
+	int actual_format;
+	unsigned long n_items, bytes_after;
+	unsigned char *property;
+	unsigned char *name_of_window = NULL;
+
+	/*
+	 * nb: this ignores the fact that WM_NAME is Latin-1
+	 * whereas _NET_WM_NAME is UTF-8.  The distinction
+	 * doesn't arise in the things we're testing.
+	 */
+
+	if (XGetWindowProperty (gdk_x11_get_default_xdisplay (),
+				window,
+				gdk_x11_get_xatom_by_name ("_NET_WM_NAME"),
+				0,
+				1024,
+				False,
+				gdk_x11_get_xatom_by_name ("UTF8_STRING"),
+				&actual_type,
+				&actual_format,
+				&n_items,
+				&bytes_after,
+				&property)==Success)
+	  {
+	    name_of_window = property;
+	  }
+            
+	if (!name_of_window &&
+	    XGetWindowProperty(gdk_x11_get_default_xdisplay (),
+			       window,
+			       gdk_x11_get_xatom_by_name ("WM_NAME"),
+			       0,
+			       1024,
+			       False,
+			       gdk_x11_get_xatom_by_name ("STRING"),
+			       &actual_type,
+			       &actual_format,
+			       &n_items,
+			       &bytes_after,
+			       &property)==Success)
+	  {
+	    name_of_window = property;
+	  }
+
+	if (name_of_window)
+	  {
+	    unsigned char *result = g_strdup (name_of_window);
+
+	    XFree (name_of_window);
+
+	    return result;
+	  }
+	else
+	  {
+	    return g_strdup("");
+	  }
+      }
+      break;
+
+    default:
+      g_warning ("Unknown test %d is running!",
+		 point_of_comparison);
+      return g_strdup ("?");
+    }
 }
 
 static void
@@ -170,6 +240,7 @@ run_comparison (Window a, Window b)
 	}
       else
 	{
+	  /* always tell them about failures, even if !verbose */
 	  g_print ("Test %d FAILS\n%x: %s\n%x: %s\n",
 		   i,
 		   (int) a, a_result,
