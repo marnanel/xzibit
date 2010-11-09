@@ -1,12 +1,34 @@
 #include <gdk/gdkx.h>
 #include <stdlib.h>
+#include <string.h>
 
 int sent_window_count = 0;
 Window sent_window_id = None;
 int received_window_count = 0;
 Window received_window_id = None;
 
+typedef enum _TestCode {
+  TEST_COMPARE_TITLE,
+  TEST_COMPARE_CONTENTS,
+  TEST_LAST
+} TestCode;
+
 gboolean verbose = TRUE;
+gboolean run_test[TEST_LAST];
+
+static const GOptionEntry options[] =
+{
+	{
+	  "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose,
+	  "Print messages", NULL },
+	{
+	  "title", 'T', 0, G_OPTION_ARG_NONE, &(run_test[TEST_COMPARE_TITLE]),
+	  "Compare the titles of the windows", NULL },
+	{
+	  "contents", 'C', 0, G_OPTION_ARG_NONE, &(run_test[TEST_COMPARE_CONTENTS]),
+	  "Compare the contents of the windows", NULL },
+	{ NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, 0 }
+};
 
 static int
 check_for_sent_and_received_windows_tail (Window window)
@@ -103,17 +125,55 @@ usage_message (void)
   exit (255);
 }
 
+static void
+run_comparison (Window a, Window b)
+{
+  int test_count = 0;
+  int successes = 0;
+  int i;
+
+  for (i=0; i<TEST_LAST; i++)
+    {
+      g_print ("Run test %d?  %d\n",
+	       i, run_test[i]);
+    }
+}
+
+static void
+parse_options(int argc, char **argv)
+{
+  GOptionContext *context;
+  GError *error = NULL;
+
+  memset (run_test, 0, sizeof(run_test));
+
+  context = g_option_context_new ("xzibit-test-compare");
+  g_option_context_add_main_entries (context, options, NULL);
+  g_option_context_parse (context, &argc, &argv, &error);
+  if (error)
+    {
+      g_print ("%s: %s\n",
+	       argv[0],
+	       error->message);
+      g_error_free (error);
+      exit (1);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
   gtk_init (&argc, &argv);
+
+  parse_options (argc, argv);
 
   check_for_sent_and_received_windows ();
 
   if (sent_window_count==1 && received_window_count==1)
     {
       /* ideal; we know what we're dealing with */
-      g_warning ("Not implemented: run actual comparisons");
+      run_comparison (sent_window_id,
+		      received_window_id);
     }
   else if (sent_window_count==1 && received_window_count==0)
     {
