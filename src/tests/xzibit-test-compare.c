@@ -316,6 +316,29 @@ run_comparison (Window a, Window b)
     }
 }
 
+static gboolean
+waiting_for_received (gpointer dummy)
+{
+  sent_window_count = received_window_count = 0;
+
+  check_for_sent_and_received_windows ();
+
+  if (sent_window_count==1 && received_window_count==1)
+    {
+      /* lovely; let's get on with it */
+      run_comparison (sent_window_id,
+		      received_window_id);
+    }
+  else
+    {
+      g_print ("Even after waiting, we didn't have one of each\n");
+      g_print ("kind of window.  Giving up now.\n");
+      exit (253);
+    }
+
+  return FALSE;
+}
+
 static void
 parse_options(int argc, char **argv)
 {
@@ -356,9 +379,17 @@ main(int argc, char **argv)
     {
       /*
        * a window has been sent; none has been retrieved;
-       * block on it
+       * block on it.
+       *
+       * Here we could monitor the root window for the
+       * received window to appear.  But then we'd have
+       * to wait a second or so after that anyway, to
+       * let the new window settle.  So let's just wait
+       * two seconds and see what happens.
        */
-      g_warning ("Not implemented: wait for received");
+      g_timeout_add (2000,
+		     waiting_for_received,
+		     NULL);
     }
   else
     {
