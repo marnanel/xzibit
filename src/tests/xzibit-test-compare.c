@@ -1,4 +1,5 @@
 #include <gdk/gdkx.h>
+#include <gdk-pixbuf/gdk-pixdata.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -198,6 +199,48 @@ get_window_detail (Window window,
 	  {
 	    return g_strdup("");
 	  }
+      }
+      break;
+
+    case TEST_COMPARE_CONTENTS:
+      {
+	GdkWindow *foreign = gdk_window_foreign_new (window);
+	int width, height;
+	GdkPixbuf *pixbuf;
+	GdkPixdata pixdata;
+	GString *serialised;
+	gchar *digest;
+
+	gdk_window_get_size (foreign, &width, &height);
+	
+	pixbuf = gdk_pixbuf_get_from_drawable (NULL,
+					       foreign,
+					       gdk_colormap_get_system (),
+					       0, 0, 0, 0,
+					       width, height);
+	gdk_pixdata_from_pixbuf (&pixdata,
+				 pixbuf,
+				 FALSE);
+
+	/*
+	 * Let's turn it into a null-termiated ASCII string,
+	 * because the formula for getting the length of the
+	 * data part of a GdkPixbuf is over-complicated.
+	 */
+	serialised =
+	  gdk_pixdata_to_csource (&pixdata,
+				  "pix",
+				  GDK_PIXDATA_DUMP_PIXDATA_STRUCT);
+
+	digest = g_compute_checksum_for_data (G_CHECKSUM_MD5,
+					      serialised->str,
+					      serialised->len);
+
+	gdk_pixbuf_unref (pixbuf);
+	/* XXX how do you free a GdkPixdata? */
+	g_string_free (serialised, TRUE);
+
+	return digest;
       }
       break;
 
