@@ -297,11 +297,22 @@ run_comparison (Window a, Window b)
   if (test_count==0)
     {
       g_print ("warning: no tests were run\n");
+
+      exit (0);
     }
   else if (verbose)
     {
       g_print ("Tests run: %d\nSuccesses: %d\n",
 	       test_count, successes);
+
+      if (test_count == successes)
+	{
+	  exit (0);
+	}
+      else
+	{
+	  exit (1);
+	}
     }
 }
 
