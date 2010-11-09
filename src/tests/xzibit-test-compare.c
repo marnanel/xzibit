@@ -13,7 +13,7 @@ typedef enum _TestCode {
   TEST_LAST
 } TestCode;
 
-gboolean verbose = TRUE;
+gboolean verbose = FALSE;
 gboolean run_test[TEST_LAST];
 
 static const GOptionEntry options[] =
@@ -125,6 +125,19 @@ usage_message (void)
   exit (255);
 }
 
+static char*
+get_window_detail (Window window,
+		   int point_of_comparison)
+{
+  if (verbose)
+    {
+      g_print ("Running test on window %x for %d\n",
+	       (int) window, point_of_comparison);
+    }
+
+  return g_strdup ("Foo");
+}
+
 static void
 run_comparison (Window a, Window b)
 {
@@ -134,8 +147,47 @@ run_comparison (Window a, Window b)
 
   for (i=0; i<TEST_LAST; i++)
     {
-      g_print ("Run test %d?  %d\n",
-	       i, run_test[i]);
+      char *a_result, *b_result;
+
+      if (!run_test[i])
+	{
+	  continue;
+	}
+
+      a_result = get_window_detail (a, i);
+      b_result = get_window_detail (b, i);
+
+      test_count++;
+
+      if (strcmp (a_result, b_result)==0)
+	{
+	  if (verbose)
+	    {
+	      g_print ("Test %d passes\n", i);
+	    }
+
+	  successes++;
+	}
+      else
+	{
+	  g_print ("Test %d FAILS\n%x: %s\n%x: %s\n",
+		   i,
+		   (int) a, a_result,
+		   (int) b, b_result);
+	}
+
+      g_free (a_result);
+      g_free (b_result);
+    }
+
+  if (test_count==0)
+    {
+      g_print ("warning: no tests were run\n");
+    }
+  else if (verbose)
+    {
+      g_print ("Tests run: %d\nSuccesses: %d\n",
+	       test_count, successes);
     }
 }
 
