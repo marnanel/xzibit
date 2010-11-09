@@ -1,9 +1,12 @@
 #include <gdk/gdkx.h>
+#include <stdlib.h>
 
 int sent_window_count = 0;
 Window sent_window_id = None;
 int received_window_count = 0;
 Window received_window_id = None;
+
+gboolean verbose = TRUE;
 
 static int
 check_for_sent_and_received_windows_tail (Window window)
@@ -87,6 +90,19 @@ check_for_sent_and_received_windows (void)
   return check_for_sent_and_received_windows_tail (gdk_x11_get_default_root_xwindow ());
 }
 
+static void
+usage_message (void)
+{
+  g_print ("xzibit-test-compare : compares sent and received windows\n");
+  g_print ("If there is one sent and one received window, we will compare those.\n");
+  g_print ("If there is one sent and no received windows,\n");
+  g_print ("we will wait for the received window to appear.\n");
+  g_print ("Otherwise, you'll get this message.\n");
+  g_print ("Use the --help option to get a list of possible points of comparison.\n");
+
+  exit (255);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -94,9 +110,26 @@ main(int argc, char **argv)
 
   check_for_sent_and_received_windows ();
 
-  printf ("Sent: %d; received %d\n",
-	  sent_window_count,
-	  received_window_count);
+  if (sent_window_count==1 && received_window_count==1)
+    {
+      /* ideal; we know what we're dealing with */
+      g_warning ("Not implemented: run actual comparisons");
+    }
+  else if (sent_window_count==1 && received_window_count==0)
+    {
+      /*
+       * a window has been sent; none has been retrieved;
+       * block on it
+       */
+      g_warning ("Not implemented: wait for received");
+    }
+  else
+    {
+      g_print ("Count of sent windows: %d.  Count of received windows: %d.\n\n",
+	       sent_window_count,
+	       received_window_count);
+      usage_message ();
+    }
 
   return 0;
 }
