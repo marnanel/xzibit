@@ -12,6 +12,9 @@ class Tests:
         self._verbose = False
         self._xserver = 'xephyr'
 
+        self._passcount = 0
+        self._testcount = 0
+
         self._devnull = file('/dev/null', 'w')
 
         self._programs = {
@@ -83,6 +86,19 @@ class Tests:
                 print '%s - %s' % (test,
                                    func.__doc__)
                 func()
+
+        print 'Tests run:%3d' % (self._testcount,)
+        print 'Passes   :%3d' % (self._passcount,)
+
+        if self._passcount != self._testcount:
+            print 'Things may improve if you run the tests again.'
+
+            if not self._verbose:
+                print 'You might also learn more if you used the -v switch.'
+
+            return False
+        else:
+            return True
 
     def test010(self):
         "Titles of both windows are the same"
@@ -208,8 +224,17 @@ class Tests:
         if success is None:
             success = 'fail'
 
-        print '>>> RESULT: ', success
-        sys.exit(1)
+        self._testcount += 1
+
+        if success=='pass':
+            if self._verbose:
+                print 'Test passes.'
+
+            self._passcount += 1
+            return 1
+        else:
+            print 'Test fails.'
+            return 0
 
     def _handle_program_ending(self, program, code, expectations):
 
@@ -240,5 +265,8 @@ if __name__=='__main__':
             # and therefore mutter will bail.)
             tests.set_invisibility(True)
 
-    tests.run_all()
+    if tests.run_all():
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
