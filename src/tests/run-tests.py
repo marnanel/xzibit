@@ -2,6 +2,7 @@ import random
 import os.path
 import sys
 import time
+import subprocess
 
 # TODO:
 #  - _run() needs to store the pid
@@ -54,6 +55,8 @@ class Tests:
 
         if not all_found_so_far:
             sys.exit(3)
+
+        self._tasks = {}
 
     def run_all(self):
         for test in sorted(dir(self)):
@@ -108,6 +111,8 @@ class Tests:
             self._run('compare',
                       compare)
 
+        sys.exit(0)
+
     def _x_display_is_in_use(self, display):
         return os.path.exists('/tmp/.X%d-lock' % (display,))
 
@@ -118,9 +123,13 @@ class Tests:
         return display
 
     def _run(self, *args):
-        os.spawnv(os.P_NOWAIT,
-                  self._programs[args[0]],
-                  args)
+
+        params = [self._programs[args[0]]]
+        params.extend(args[1:])
+
+        popen = subprocess.Popen(params)
+
+        self._tasks[args[0]] = popen
 
 if __name__=='__main__':
     tests = Tests()
