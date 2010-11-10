@@ -21,7 +21,7 @@ class Tests:
             # but that means not doing this check in the
             # constructor, which means a little rewriting.
             'xephyr': 'Xephyr',
-            'xvfb': 'Xvfb',
+            #'xvfb': 'Xvfb',
             'autoshare': 'xzibit-autoshare',
             'compare': 'xzibit-test-compare',
             'mutter': 'mutter',
@@ -71,6 +71,8 @@ class Tests:
     def set_invisibility(self, invisibility):
         if invisibility:
             self._xserver = 'xvfb'
+            print 'Warning: You have selected invisible mode.'
+            print 'This is poorly-debugged and probably broken.'
         else:
             self._xserver = 'xephyr'
 
