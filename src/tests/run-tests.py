@@ -69,7 +69,9 @@ class Tests:
     def test010(self):
         "Titles of both windows are the same"
         self._general_test(autoshare = '',
-                           compare = '-Tv')
+                           compare = '-Tv',
+                           expectations = {'compare': 0},
+                           end_after = ['compare'])
 
     def test020(self):
         "Contents of both windows are the same"
@@ -85,7 +87,9 @@ class Tests:
 
     def _general_test(self,
                       autoshare=None,
-                      compare=None):
+                      compare=None,
+                      expectations={},
+                      end_after=[]):
         # FIXME: This routine tries to make sure that
         # things have settled after launching a program
         # by simply waiting.  It might be better to
@@ -111,7 +115,8 @@ class Tests:
             self._run('compare',
                       compare)
 
-        sys.exit(0)
+        self._clear_up(expectations,
+                       end_after)
 
     def _x_display_is_in_use(self, display):
         return os.path.exists('/tmp/.X%d-lock' % (display,))
@@ -130,6 +135,62 @@ class Tests:
         popen = subprocess.Popen(params)
 
         self._tasks[args[0]] = popen
+
+    def _clear_up(self, expectations, end_after):
+
+        running = True
+        success = None
+
+        while self._tasks and running:
+            # Now we could do something clever with signals
+            # here, but this is just a test which runs for
+            # at most ten seconds, so it's sufficient
+            # to poll each status once a second.
+            removals = []
+            for task in self._tasks:
+                code = self._tasks[task].poll()
+
+                if code is not None:
+                    partial_success = self._handle_program_ending(task,
+                                                                  code,
+                                                                  expectations)
+
+                    if partial_success is not None:
+                        success = partial_success
+
+                    removals.append(task)
+
+            for task in removals:
+                del self._tasks[task]
+                if task in end_after:
+                    running = False
+            time.sleep(1)
+
+        # So nothing is left but to clear up the pieces.
+        for task in self._tasks:
+            self._tasks[task].send_signal(15) # SIGTERM
+        self._tasks = {}
+
+        if success is None:
+            success = 'fail'
+
+        print '>>> RESULT: ', success
+        sys.exit(1)
+
+    def _handle_program_ending(self, program, code, expectations):
+
+        """Handles one of our programs terminating.  Returns None
+        if we can't say whether this makes a success or failure,
+        'pass' if it's a success, or 'fail' if it's a failure."""
+
+        if expectations.has_key(program) and expectations[program]==code:
+            print '(Program %s ended as expected)' % (program,)
+            return 'pass'
+
+        print '*** Program %s has ended with unexpected code %d ***' % (program,
+                                                                        code)
+
+        return 'fail'
 
 if __name__=='__main__':
     tests = Tests()
