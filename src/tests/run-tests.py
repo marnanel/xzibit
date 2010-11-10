@@ -3,11 +3,19 @@ import os.path
 import sys
 import time
 
+# TODO:
+#  - _run() needs to store the pid
+#    somewhere so we can kill things when we're
+#    done with them.
+#  - more importantly, we need a way to make it
+#    tell us when one of the processes quits.
+
 class Tests:
     def __init__(self):
         self._programs = {
             'xephyr': 'Xephyr',
             'autoshare': 'xzibit-autoshare',
+            'compare': 'xzibit-test-compare',
             'mutter': 'mutter',
             }
 
@@ -57,7 +65,8 @@ class Tests:
 
     def test010(self):
         "Titles of both windows are the same"
-        self._general_test(autoshare = '')
+        self._general_test(autoshare = '',
+                           compare = '-Tv')
 
     def test020(self):
         "Contents of both windows are the same"
@@ -71,7 +80,9 @@ class Tests:
         "Sending mouse clicks works"
         pass
 
-    def _general_test(self, autoshare=None):
+    def _general_test(self,
+                      autoshare=None,
+                      compare=None):
         # FIXME: This routine tries to make sure that
         # things have settled after launching a program
         # by simply waiting.  It might be better to
@@ -90,6 +101,12 @@ class Tests:
             self._run('autoshare',
                       autoshare,
                       '-L')
+            # this takes a while, so:
+            time.sleep(5)
+
+        if compare is not None:
+            self._run('compare',
+                      compare)
 
     def _x_display_is_in_use(self, display):
         return os.path.exists('/tmp/.X%d-lock' % (display,))
