@@ -4,11 +4,14 @@ import sys
 import time
 import subprocess
 import getopt
+import StringIO
 
 class Tests:
     def __init__(self):
 
         self._verbose = False
+
+        self._devnull = file('/dev/null', 'w')
 
         self._programs = {
             'xephyr': 'Xephyr',
@@ -137,7 +140,17 @@ class Tests:
         params = [self._programs[args[0]]]
         params.extend(args[1:])
 
-        popen = subprocess.Popen(params)
+        if self._verbose:
+            # then it should inherit our fds
+            stdout = None
+            stderr = None
+        else:
+            stdout = self._devnull
+            stderr = self._devnull
+
+        popen = subprocess.Popen(params,
+                                 stdout=stdout,
+                                 stderr=stderr)
 
         self._tasks[args[0]] = popen
 
@@ -169,6 +182,7 @@ class Tests:
                 del self._tasks[task]
                 if task in end_after:
                     running = False
+
             time.sleep(1)
 
         # So nothing is left but to clear up the pieces.
