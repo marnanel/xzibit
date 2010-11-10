@@ -17,6 +17,8 @@ class Tests:
 
         self._devnull = file('/dev/null', 'w')
 
+        self._realdisplay = os.getenv('DISPLAY')
+        
         self._programs = {
             # FIXME: You don't really need both the next two
             # installed.  You usually only need one.  It's
@@ -109,7 +111,10 @@ class Tests:
 
     def test020(self):
         "Contents of both windows are the same"
-        pass
+        self._general_test(autoshare = '',
+                           compare = '-C',
+                           expectations = {'compare': 0},
+                           end_after = ['compare'])
 
     def test030(self):
         "Sending keystrokes works"
@@ -128,6 +133,8 @@ class Tests:
         # things have settled after launching a program
         # by simply waiting.  It might be better to
         # parse the output of each program somehow.
+        os.putenv('DISPLAY',
+                  self._realdisplay)
         display = self._unused_x_display()
         self._run(self._xserver,
                   ':%d' % (display,))
