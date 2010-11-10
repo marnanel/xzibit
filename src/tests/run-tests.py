@@ -10,11 +10,18 @@ class Tests:
     def __init__(self):
 
         self._verbose = False
+        self._xserver = 'xephyr'
 
         self._devnull = file('/dev/null', 'w')
 
         self._programs = {
+            # FIXME: You don't really need both the next two
+            # installed.  You usually only need one.  It's
+            # probably sensible not to check for them both,
+            # but that means not doing this check in the
+            # constructor, which means a little rewriting.
             'xephyr': 'Xephyr',
+            'xvfb': 'Xvfb',
             'autoshare': 'xzibit-autoshare',
             'compare': 'xzibit-test-compare',
             'mutter': 'mutter',
@@ -61,6 +68,12 @@ class Tests:
     def set_verbosity(self, verbosity):
         self._verbose = verbosity
 
+    def set_invisibility(self, invisibility):
+        if invisibility:
+            self._xserver = 'xvfb'
+        else:
+            self._xserver = 'xephyr'
+
     def run_all(self):
         for test in sorted(dir(self)):
             if test.startswith('test'):
@@ -98,7 +111,7 @@ class Tests:
         # by simply waiting.  It might be better to
         # parse the output of each program somehow.
         display = self._unused_x_display()
-        self._run('xephyr',
+        self._run(self._xserver,
                   ':%d' % (display,))
         os.putenv('DISPLAY',
                   ':%d.0' % (display,))
@@ -215,9 +228,15 @@ class Tests:
 if __name__=='__main__':
     tests = Tests()
 
-    for option in getopt.getopt(sys.argv[1:], 'v')[0]:
+    for option in getopt.getopt(sys.argv[1:], 'vi')[0]:
         if option[0]=='-v':
+            # Verbose
             tests.set_verbosity(True)
+        elif option[0]=='-i':
+            # Invisible
+            # (This doesn't work; xvfb has no compositor
+            # and therefore mutter will bail.)
+            tests.set_invisibility(True)
 
     tests.run_all()
 
