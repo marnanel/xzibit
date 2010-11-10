@@ -1,21 +1,23 @@
 import random
 import os.path
 import sys
+import time
 
 class Tests:
     def __init__(self):
         self._programs = {
             'xephyr': 'Xephyr',
             'autoshare': 'xzibit-autoshare',
+            'mutter': 'mutter',
             }
 
         # now make sure we can find them all
 
-        # FIXME: path needs to have some places prepended,
-        # so we get to search in the current dir and the
-        # tests dir, etc.
-
         search_path = os.getenv('PATH', '').split(':')
+        search_path.insert(0, '.')
+        search_path.insert(0, '..')
+        search_path.insert(0, 'src')
+        search_path.insert(0, 'src/tests')
         all_found_so_far = 1
 
         for program in self._programs:
@@ -45,10 +47,6 @@ class Tests:
         if not all_found_so_far:
             sys.exit(3)
 
-        print self._programs
-        
-        sys.exit(1)
-
     def run_all(self):
         for test in sorted(dir(self)):
             if test.startswith('test'):
@@ -73,23 +71,39 @@ class Tests:
         "Sending mouse clicks works"
         pass
 
-    def _general_test(autoshare=None):
+    def _general_test(self, autoshare=None):
+        # FIXME: This routine tries to make sure that
+        # things have settled after launching a program
+        # by simply waiting.  It might be better to
+        # parse the output of each program somehow.
+        display = self._unused_x_display()
         self._run('xephyr',
                   ':%d' % (display,))
-        print 
+        os.putenv('DISPLAY',
+                  ':%d.0' % (display,))
+        time.sleep(1)
+
+        self._run('mutter')
+        time.sleep(1)
+
+        if autoshare is not None:
+            self._run('autoshare',
+                      autoshare,
+                      '-L')
 
     def _x_display_is_in_use(self, display):
         return os.path.exists('/tmp/.X%d-lock' % (display,))
 
     def _unused_x_display(self):
         display = int(random.random()*100)
-        while x_display_is_in_use(display):
+        while self._x_display_is_in_use(display):
             display += 1
         return display
 
     def _run(self, *args):
-        # FIXME: check args[0] exists, bail if not
-        os.spawnv(os.P_NOWAIT, args[0], args)
+        os.spawnv(os.P_NOWAIT,
+                  self._programs[args[0]],
+                  args)
 
 if __name__=='__main__':
     tests = Tests()
