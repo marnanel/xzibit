@@ -3,16 +3,13 @@ import os.path
 import sys
 import time
 import subprocess
-
-# TODO:
-#  - _run() needs to store the pid
-#    somewhere so we can kill things when we're
-#    done with them.
-#  - more importantly, we need a way to make it
-#    tell us when one of the processes quits.
+import getopt
 
 class Tests:
     def __init__(self):
+
+        self._verbose = False
+
         self._programs = {
             'xephyr': 'Xephyr',
             'autoshare': 'xzibit-autoshare',
@@ -58,6 +55,9 @@ class Tests:
 
         self._tasks = {}
 
+    def set_verbosity(self, verbosity):
+        self._verbose = verbosity
+
     def run_all(self):
         for test in sorted(dir(self)):
             if test.startswith('test'):
@@ -69,7 +69,7 @@ class Tests:
     def test010(self):
         "Titles of both windows are the same"
         self._general_test(autoshare = '',
-                           compare = '-Tv',
+                           compare = '-T',
                            expectations = {'compare': 0},
                            end_after = ['compare'])
 
@@ -112,8 +112,13 @@ class Tests:
             time.sleep(5)
 
         if compare is not None:
-            self._run('compare',
-                      compare)
+            if self._verbose:
+                self._run('compare',
+                          compare,
+                          '-v')
+            else:
+                self._run('compare',
+                          compare)
 
         self._clear_up(expectations,
                        end_after)
@@ -184,7 +189,8 @@ class Tests:
         'pass' if it's a success, or 'fail' if it's a failure."""
 
         if expectations.has_key(program) and expectations[program]==code:
-            print '(Program %s ended as expected)' % (program,)
+            if self._verbose:
+                print '(Program %s ended as expected)' % (program,)
             return 'pass'
 
         print '*** Program %s has ended with unexpected code %d ***' % (program,
@@ -194,6 +200,10 @@ class Tests:
 
 if __name__=='__main__':
     tests = Tests()
+
+    for option in getopt.getopt(sys.argv[1:], 'v')[0]:
+        if option[0]=='-v':
+            tests.set_verbosity(True)
 
     tests.run_all()
 
