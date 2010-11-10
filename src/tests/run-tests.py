@@ -46,9 +46,6 @@ class Tests:
             sys.exit(3)
 
         print self._programs
-
-        # FIXME: complain about any we didn't find
-        # (actually, do this in the loop)
         
         sys.exit(1)
 
