@@ -15,6 +15,9 @@ class Tests:
         self._passcount = 0
         self._testcount = 0
 
+        # default, to run everything we find
+        self._run_these_tests = None
+
         self._devnull = file('/dev/null', 'w')
 
         self._realdisplay = os.getenv('DISPLAY')
@@ -29,6 +32,7 @@ class Tests:
             #'xvfb': 'Xvfb',
             'autoshare': 'xzibit-autoshare',
             'compare': 'xzibit-test-compare',
+            'send': 'xzibit-test-send',
             'mutter': 'mutter',
             }
 
@@ -81,13 +85,17 @@ class Tests:
         else:
             self._xserver = 'xephyr'
 
+    def run_these_tests(self, tests):
+        self._run_these_tests = tests
+
     def run_all(self):
         for test in sorted(dir(self)):
             if test.startswith('test'):
-                func = getattr(self, test)
-                print '%s - %s' % (test,
-                                   func.__doc__)
-                func()
+                if self._run_these_tests is None or test in self._run_these_tests:
+                    func = getattr(self, test)
+                    print '%s - %s' % (test,
+                                       func.__doc__)
+                    func()
 
         print 'Tests run:%3d' % (self._testcount,)
         print 'Passes   :%3d' % (self._passcount,)
@@ -262,7 +270,9 @@ class Tests:
 if __name__=='__main__':
     tests = Tests()
 
-    for option in getopt.getopt(sys.argv[1:], 'vi')[0]:
+    options = getopt.getopt(sys.argv[1:], 'vi')
+
+    for option in options[0]:
         if option[0]=='-v':
             # Verbose
             tests.set_verbosity(True)
@@ -271,6 +281,9 @@ if __name__=='__main__':
             # (This doesn't work; xvfb has no compositor
             # and therefore mutter will bail.)
             tests.set_invisibility(True)
+
+    if options[1]:
+        tests.run_these_tests(options[1])
 
     if tests.run_all():
         sys.exit(0)
